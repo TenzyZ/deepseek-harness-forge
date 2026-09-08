@@ -1,0 +1,17 @@
+/* Seats under the hero headline in the stack's existing 12px rhythm. Caption
+   ink and the shell's small type keep it subordinate to the headline; the
+   product line carries the only emphasis. */
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--dsw-alias-label-caption);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.product {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}

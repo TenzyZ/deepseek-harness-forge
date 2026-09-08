@@ -155,7 +155,9 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
           <span className={css.previewBadge}>{t('hero.preview')}</span>
         </div>
         <div className={css.body}>
-          {/* The composer remains mounted outside this component. */}
+          {/* The composer remains mounted outside this component; a deployment
+              identifying itself under the headline occupies the slot. */}
+          {renderSlot('conversation.hero.attribution', {})}
         </div>
       </div>
       {children}

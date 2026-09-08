@@ -32,3 +32,7 @@
 
     - id: ui-directory-picker-native
       name: '@deepseek-ai/dsh-client-ui-directory-picker-native'
+
+    # DSH Forge identifies itself under the hero; the Web product does not.
+    - id: ui-brand-forge
+      name: '@deepseek-ai/dsh-experimental-client-ui-brand-forge'

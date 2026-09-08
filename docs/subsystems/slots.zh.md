@@ -156,6 +156,7 @@ root
 │  ├─ conversation.input.left
 │  ├─ conversation.input.right
 │  ├─ conversation.hero.brand.mark
+│  ├─ conversation.hero.attribution
 │  ├─ conversation.hero.workspace
 │  │  └─ conversation.hero.workspace.directoryFlow
 │  └─ conversation.hero.agentPreset
