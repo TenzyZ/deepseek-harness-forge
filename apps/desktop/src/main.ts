@@ -80,12 +80,16 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
 }
 
 function createWindow(preload: string): BrowserWindow {
+  const configuredWindowIcon = app.isPackaged ? undefined : process.env.DSH_DESKTOP_WINDOW_ICON
   const window = new BrowserWindow({
     width: 1280,
     height: 840,
     minWidth: 880,
     minHeight: 600,
     show: false,
+    ...(configuredWindowIcon === undefined || configuredWindowIcon === ''
+      ? {}
+      : { icon: resolve(configuredWindowIcon) }),
     webPreferences: {
       preload,
       nodeIntegration: false,

@@ -170,7 +170,7 @@ Electron-builder always emits generic-provider channel metadata for the deployme
 
 ## Low-level development overrides
 
-`DSH_DESKTOP_NODE_BINARY`, `DSH_DESKTOP_PNPM_ENTRY`, `DSH_DESKTOP_SEED_DIR`, and `DSH_DESKTOP_DEV_PROJECT_DIR` select explicit resources for an unpackaged Electron process. Packaged applications ignore these variables and resolve signed resources from `process.resourcesPath`.
+`DSH_DESKTOP_NODE_BINARY`, `DSH_DESKTOP_PNPM_ENTRY`, `DSH_DESKTOP_SEED_DIR`, and `DSH_DESKTOP_DEV_PROJECT_DIR` select explicit resources for an unpackaged Electron process. `DSH_DESKTOP_WINDOW_ICON` supplies an optional icon path for windows created by that process. Packaged applications ignore these variables and resolve signed resources from `process.resourcesPath`.
 
 ## Known limitations
 

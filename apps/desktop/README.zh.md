@@ -170,7 +170,7 @@ Electron-builder 始终为 `DSH_DESKTOP_AUTO_UPDATE_ENV` 选择的部署生成 g
 
 ## 底层开发覆盖项
 
-`DSH_DESKTOP_NODE_BINARY`、`DSH_DESKTOP_PNPM_ENTRY`、`DSH_DESKTOP_SEED_DIR` 和 `DSH_DESKTOP_DEV_PROJECT_DIR` 可以为未打包 Electron 进程选择明确的资源。打包应用会忽略这些变量，并从 `process.resourcesPath` 解析签名资源。
+`DSH_DESKTOP_NODE_BINARY`、`DSH_DESKTOP_PNPM_ENTRY`、`DSH_DESKTOP_SEED_DIR` 和 `DSH_DESKTOP_DEV_PROJECT_DIR` 可以为未打包 Electron 进程选择明确的资源。`DSH_DESKTOP_WINDOW_ICON` 为该进程创建的窗口提供可选图标路径。打包应用会忽略这些变量，并从 `process.resourcesPath` 解析签名资源。
 
 ## 已知限制
 
