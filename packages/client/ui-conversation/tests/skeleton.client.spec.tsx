@@ -326,7 +326,10 @@ describe('Hero chrome', () => {
     const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot} />)
     expect(view.getByText('Into the Unknown')).toBeTruthy()
     expect(view.getByText('Preview')).toBeTruthy()
-    expect(renderSlot).toHaveBeenCalledOnce()
+    expect(renderSlot.mock.calls.map(call => call[0])).toEqual([
+      'conversation.hero.brand.mark',
+      'conversation.hero.attribution',
+    ])
     expect(renderSlot.mock.calls[0]?.[0]).toBe('conversation.hero.brand.mark')
     const brandMarkOwner = renderSlot.mock.calls[0]?.[1]
     if (brandMarkOwner === undefined || !('size' in brandMarkOwner) || !('className' in brandMarkOwner)) {
@@ -335,6 +338,15 @@ describe('Hero chrome', () => {
     expect(brandMarkOwner.size).toBe(34)
     expect(brandMarkOwner.className).toBeTypeOf('string')
     expect(renderSlot.mock.calls[0]?.[2]?.fallback).toBeTruthy()
+  })
+
+  it('leaves the hero unchanged while the attribution slot is unoccupied', () => {
+    // The Web product ships no occupant: the slot renders nothing and the
+    // headline, badge and geometry stay exactly as they are without it.
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={() => null} />)
+    expect(view.getByText('Into the Unknown')).toBeTruthy()
+    expect(view.getByText('Preview')).toBeTruthy()
+    expect(view.container.textContent).toBe('Into the UnknownPreview')
   })
 })
 
