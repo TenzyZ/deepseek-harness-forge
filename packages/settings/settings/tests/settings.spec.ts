@@ -204,6 +204,42 @@ describe('registration', () => {
     const again = ctx.settings.register('ui-theme', ThemeSchema)
     expect(again.get()).toEqual({ theme: 'light', fontSize: 14 })
   })
+
+  it('quiesces owned watchers before the registrant fiber disposes', async () => {
+    const { ctx, provider } = await boot()
+    const started = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const calls: number[] = []
+    const fiber = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        const scope = child.settings.register('ui-theme', ThemeSchema)
+        scope.watch(async (next) => {
+          calls.push(next.fontSize)
+          if (calls.length !== 1) return
+          started.resolve(undefined)
+          await release.promise
+        })
+      },
+    })
+    await fiber
+
+    provider.pushExternal({ 'ui-theme': { fontSize: 1 } })
+    await started.promise
+    provider.pushExternal({ 'ui-theme': { fontSize: 2 } })
+
+    let disposed = false
+    const disposal = fiber.dispose().then(() => { disposed = true })
+    await new Promise<void>(resolve => setImmediate(resolve))
+    const disposedBeforeRelease = disposed
+    expect(ctx.settings.get('ui-theme')).toBeUndefined()
+    release.resolve(undefined)
+    await disposal
+    await new Promise<void>(resolve => setImmediate(resolve))
+
+    expect(disposedBeforeRelease).toBe(false)
+    expect(calls).toEqual([1])
+  })
 })
 
 describe('update', () => {

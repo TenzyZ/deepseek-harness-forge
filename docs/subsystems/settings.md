@@ -17,7 +17,7 @@ type SettingsNamespace = Branded<'SettingsNamespace'>
 
 ## Registration
 
-Registration binds a schemastery schema to a namespace on the calling plugin's fiber — disposing that fiber removes the namespace and its observers. The options carry the composition layer, the owner's effect timing, and an optional check for what the schema cannot express.
+Registration binds a schemastery schema to a namespace on the calling plugin's fiber — disposing that fiber removes the namespace, prevents its queued observer invocations from starting, and settles only after started observer work finishes. The options carry the composition layer, the owner's effect timing, and an optional check for what the schema cannot express.
 
 ```ts type-equiv
 /** Registration options beyond the namespace schema. */
@@ -190,9 +190,10 @@ prepareDocument(): Promise<string | undefined>
 
 /**
  * Register a namespace schema and receive its owner scope. The registration
- * is an effect on the calling plugin's fiber: disposing that fiber removes
- * the namespace and its observers. An invalid stored section fails the
- * registration itself — the earliest point where the schema can judge it.
+ * is an effect on the calling plugin's fiber: disposal deactivates its
+ * observers, removes the namespace, and settles only after started observer
+ * work finishes. An invalid stored section fails the registration itself —
+ * the earliest point where the schema can judge it.
  * @param ns - unique namespace; duplicate registration fails loud.
  * @param schema - schemastery schema resolving this namespace's value.
  * @param options - composition `base` layer and effect timing.

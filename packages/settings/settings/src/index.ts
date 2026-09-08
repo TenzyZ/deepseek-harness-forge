@@ -299,7 +299,7 @@ interface SettingsWatcher {
   callback: (next: never, prev: never) => void | Promise<void>
   /** Settled tail: invocations of this callback run one at a time, in commit order. */
   tail: Promise<void>
-  /** Cleared by the disposer: a queued invocation checks this before starting. */
+  /** Cleared when the watcher or its registration disposes: a queued invocation checks this before starting. */
   active: boolean
 }
 
@@ -407,9 +407,10 @@ export abstract class SettingsProvider extends Service {
 
   /**
    * Register a namespace schema and receive its owner scope. The registration
-   * is an effect on the calling plugin's fiber: disposing that fiber removes
-   * the namespace and its observers. An invalid stored section fails the
-   * registration itself — the earliest point where the schema can judge it.
+   * is an effect on the calling plugin's fiber: disposal deactivates its
+   * observers, removes the namespace, and settles only after started observer
+   * work finishes. An invalid stored section fails the registration itself —
+   * the earliest point where the schema can judge it.
    * @param ns - unique namespace; duplicate registration fails loud.
    * @param schema - schemastery schema resolving this namespace's value.
    * @param options - composition `base` layer and effect timing.
@@ -439,9 +440,15 @@ export abstract class SettingsProvider extends Service {
     }
     this.ctx.effect(() => {
       this.registrations.set(parsedNs, registration)
-      // TODO(settings-registration-quiescence): Deactivate every watcher and await
-      // its tail on disposal so callbacks cannot outlive the registrant fiber.
-      return () => this.registrations.delete(parsedNs)
+      return async () => {
+        const tails = [...registration.watchers].map((watcher) => {
+          watcher.active = false
+          return watcher.tail
+        })
+        registration.watchers.clear()
+        this.registrations.delete(parsedNs)
+        await Promise.allSettled(tails)
+      }
     }, `settings.register(${JSON.stringify(String(parsedNs))})`)
     return {
       get: () => registration.resolved as T,

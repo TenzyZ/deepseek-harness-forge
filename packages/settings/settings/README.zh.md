@@ -91,7 +91,7 @@ TypeScript 会按小写字母、数字与连字符文法检查字面量 namespac
 - **提交以深相等为门槛。** 只有解析值变化时 `settings/updated` 才触发；原始分节事件独立存在，因为配置界面还必须得知「继承变成了覆盖」。
 - **写入排队并做 revision 检查。** 每个 namespace 的写队列按调用顺序串行，`expectedRevision` 在队首判断——那里服务才能分辨持有新鲜快照的写入方与持有陈旧快照的写入方。
 - **观察者与监听器异常被隔离。** watcher 调用与事件扇出隔离同步抛出与异步拒绝，一个坏掉的观察者不会卡死提交或提供方的重载循环；`INVARIANT` 编码的失败在所有监听器执行完后重新抛出。
-- **注册是 fiber 上的 effect。** 注册 namespace 是调用方插件 fiber 上的 effect：dispose（资源释放）该 fiber 即移除 namespace 及其观察者。
+- **注册是 fiber 上的 effect。** 注册 namespace 是调用方插件 fiber 上的 effect：dispose（资源释放）该 fiber 时会停用其观察者、移除 namespace，并等待已启动的观察者工作完成。
 
 ### 源码地图
 
@@ -156,6 +156,6 @@ TypeScript 会按小写字母、数字与连字符文法检查字面量 namespac
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-本开发备注是维护者的工作上下文：尚未决定的开放设计方向。它明确非权威——已发布的行为、限制与已接受的理由见上文各节与包代码。代码 TODO 中记录的开放方向：把公开的 `ns` 参数更名为 `namespace`（API、提供方约定、实现、测试与消费方同步）；注册释放时停用所有 watcher 并等待其 tail，让回调不越过 registrant fiber 存活；替换注册从持久化分节重新解析，让进行中的旧写入不会把它留成陈旧值；改用属性安全的对象构造，让 `__proto__` 这类合法 JSON 键保持为自有数据。fail-closed 的 `describeForWire()` 净化器是上文脱敏限制的暂缓答案。
+本开发备注是维护者的工作上下文：尚未决定的开放设计方向。它明确非权威——已发布的行为、限制与已接受的理由见上文各节与包代码。代码 TODO 中记录的开放方向：把公开的 `ns` 参数更名为 `namespace`（API、提供方约定、实现、测试与消费方同步）；替换注册从持久化分节重新解析，让进行中的旧写入不会把它留成陈旧值；改用属性安全的对象构造，让 `__proto__` 这类合法 JSON 键保持为自有数据。fail-closed 的 `describeForWire()` 净化器是上文脱敏限制的暂缓答案。
 
 </details>

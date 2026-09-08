@@ -17,7 +17,7 @@ type SettingsNamespace = Branded<'SettingsNamespace'>
 
 ## 注册
 
-注册把 schemastery schema 绑定到调用方插件 fiber 上的 namespace——dispose（资源释放）该 fiber 即移除 namespace 及其观察者。options 携带组合层、owner 的生效时机，以及一个可选的、用于校验 schema 表达不了的约束的钩子。
+注册把 schemastery schema 绑定到调用方插件 fiber 上的 namespace——dispose（资源释放）该 fiber 会移除 namespace、阻止其排队中的观察者调用启动，并在已启动的观察者工作完成后才结束。options 携带组合层、owner 的生效时机，以及一个可选的、用于校验 schema 表达不了的约束的钩子。
 
 ```ts type-equiv
 /** Registration options beyond the namespace schema. */
@@ -190,9 +190,10 @@ prepareDocument(): Promise<string | undefined>
 
 /**
  * Register a namespace schema and receive its owner scope. The registration
- * is an effect on the calling plugin's fiber: disposing that fiber removes
- * the namespace and its observers. An invalid stored section fails the
- * registration itself — the earliest point where the schema can judge it.
+ * is an effect on the calling plugin's fiber: disposal deactivates its
+ * observers, removes the namespace, and settles only after started observer
+ * work finishes. An invalid stored section fails the registration itself —
+ * the earliest point where the schema can judge it.
  * @param ns - unique namespace; duplicate registration fails loud.
  * @param schema - schemastery schema resolving this namespace's value.
  * @param options - composition `base` layer and effect timing.
