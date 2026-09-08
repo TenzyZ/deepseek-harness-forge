@@ -91,7 +91,7 @@ This section explains the design decisions behind the service and points at the 
 - **Commits are deep-equal gated.** `settings/updated` fires only when the resolved value moved; the raw-section event is separate because configuration surfaces must also learn "inherited became overridden".
 - **Writes are queued and revision-checked.** Per-namespace write queues serialize in call order, and `expectedRevision` is judged at the front of the queue, where the service can tell a fresh writer from one holding a stale snapshot.
 - **Observer and listener failures are contained.** Watcher invocations and event fan-out isolate sync throws and async rejections so one broken observer cannot wedge commits or a provider's reload loop; `INVARIANT`-coded failures rethrow after every listener ran.
-- **Registrations are fiber effects.** Registering a namespace is an effect on the calling plugin's fiber: disposing that fiber removes the namespace and its observers.
+- **Registrations are fiber effects.** Registering a namespace is an effect on the calling plugin's fiber: disposing that fiber deactivates its observers, removes the namespace, and waits for started observer work to settle.
 
 ### Source map
 
@@ -156,6 +156,6 @@ These limits define when the service is a poor fit or needs special care. They a
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-This Dev Note is working context for maintainers: open design directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above and the package code. Open directions, tracked in code TODOs: rename the public `ns` parameter to `namespace` across the API, provider contract, implementations, tests, and consumers; deactivate watchers and await their tails on registration disposal so callbacks cannot outlive the registrant fiber; re-resolve a replacement registration from its persisted section so an in-flight old write cannot leave it stale; and use property-safe object construction so valid JSON keys such as `__proto__` remain own data. The fail-closed `describeForWire()` sanitizer is the deferred answer to the redaction limitation above.
+This Dev Note is working context for maintainers: open design directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above and the package code. Open directions, tracked in code TODOs: rename the public `ns` parameter to `namespace` across the API, provider contract, implementations, tests, and consumers; re-resolve a replacement registration from its persisted section so an in-flight old write cannot leave it stale; and use property-safe object construction so valid JSON keys such as `__proto__` remain own data. The fail-closed `describeForWire()` sanitizer is the deferred answer to the redaction limitation above.
 
 </details>
