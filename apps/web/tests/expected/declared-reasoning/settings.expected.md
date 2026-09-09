@@ -1,0 +1,28 @@
+- group "支持的推理等级":
+  - text: 支持的推理等级
+  - combobox "支持的推理等级 1":
+    - option "使用目录能力"
+    - option "不支持推理"
+    - option "选择支持的等级" [selected]
+  - checkbox "支持的等级 off 1" [checked]
+  - text: "off"
+  - textbox "提供商请求值 off 1":
+    - /placeholder: 留空：不发送推理参数
+  - checkbox "支持的等级 minimal 1"
+  - text: minimal
+  - checkbox "支持的等级 low 1"
+  - text: low
+  - checkbox "支持的等级 medium 1"
+  - text: medium
+  - checkbox "支持的等级 high 1" [checked]
+  - text: high
+  - textbox "提供商请求值 high 1":
+    - /placeholder: high
+    - text: high
+  - checkbox "支持的等级 xhigh 1"
+  - text: xhigh
+  - checkbox "支持的等级 max 1" [checked]
+  - text: max
+  - textbox "提供商请求值 max 1":
+    - /placeholder: max
+    - text: ultra

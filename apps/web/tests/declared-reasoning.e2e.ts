@@ -19,6 +19,7 @@ import { ZH_BROWSER_LOCALE, connectFreshWorkspaceZh, saveFailureShot } from './s
 const OVERLAY = fileURLToPath(new URL('./declared-reasoning.overlay.yml', import.meta.url))
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/declared-reasoning', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL('./expected/declared-reasoning/ui.expected.md', import.meta.url))
+const SETTINGS_EXPECTED = join(SNAPSHOT_DIR, 'settings.expected.md')
 const MODE = webSnapshotMode()
 
 describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach the composer', () => {
@@ -29,10 +30,6 @@ describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach th
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold({ extraOverlayPath: OVERLAY })
-    // The whole reasoning offer is the profile: key = selectable level, value
-    // = the wire spelling dispatch would send (`max: ultra` renames; the
-    // valueless `off` means "supported, send nothing"). The route sets no
-    // deployment default, so the pane leads with the provider-default entry.
     await scaffold.ctx.settings.update('llm-pi-ai', {
       providers: {
         'acme-gateway': {
@@ -42,7 +39,6 @@ describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach th
           models: [{
             id: 'acme-think',
             name: 'Acme Think',
-            reasoningEfforts: { off: null, high: 'high', max: 'ultra' },
           }],
         },
       },
@@ -63,6 +59,28 @@ describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach th
   it('offers exactly the declared levels and records the picked one', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-declared-reasoning'))
     const trigger = page.getByRole('button', { name: /^选择模型/ })
+    await trigger.click()
+    await page.getByRole('menu').waitFor()
+    expect(await page.getByRole('menuitem', { name: /推理等级/ }).count()).toBe(0)
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: '设置' })
+    await dialog.getByRole('button', { name: '模型', exact: true }).click()
+    await dialog.getByRole('button', { name: '编辑 Acme Gateway (acme-gateway)' }).click()
+    await dialog.getByText('自定义设置').click()
+    await dialog.getByRole('button', { name: '模型能力 1', exact: true }).click()
+    await dialog.getByLabel('支持的推理等级 1', { exact: true }).selectOption('custom')
+    for (const level of ['off', 'high', 'max']) {
+      await dialog.getByLabel(`支持的等级 ${level} 1`, { exact: true }).check()
+    }
+    await dialog.getByLabel('提供商请求值 max 1', { exact: true }).fill('ultra')
+    await compareOrRefreshGolden(SETTINGS_EXPECTED,
+      await captureStableAria(page, 'fieldset', scaffold.workspaceCwd), MODE)
+    await dialog.getByRole('button', { name: '保存', exact: true }).click()
+    await expect.poll(async () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'))
+      .toMatch(/reasoningEfforts:\s+off: null\s+high: high\s+max: ultra/)
+    await page.keyboard.press('Escape')
+    await expect.poll(() => dialog.count()).toBe(0)
     await trigger.waitFor({ timeout: 15_000 })
     await trigger.click()
     await page.getByRole('menuitem', { name: /推理等级/ }).click()
@@ -89,6 +107,6 @@ describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach th
   }, 60_000)
 
   it('keeps its snapshot inventory closed', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['ui.expected.md'])
+    await assertFixtureInventory(SNAPSHOT_DIR, ['ui.expected.md', 'settings.expected.md'])
   })
 })

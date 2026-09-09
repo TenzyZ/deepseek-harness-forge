@@ -14,11 +14,8 @@
  * and at least one model — are required here rather than at load, so the
  * failure names the field while the user is still looking at it.
  *
- * There is deliberately no reasoning-effort control, here or on the editor
- * card: effort is a per-MODEL capability, and the models under one provider
- * disagree about it, so a provider-scoped control can only be set to a value
- * some of them reject. The composer's model picker offers each model its own
- * levels instead.
+ * Each model can declare its supported reasoning levels and wire values;
+ * the composer's model picker selects from those capabilities.
  */
 
 import { useState } from 'react'
@@ -26,7 +23,7 @@ import type { ReactNode } from 'react'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
-import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
+import { validatePiAiModels } from './model-reasoning.ts'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import type { ModelDraft } from './ModelListEditor.tsx'
 import { deriveKeyRef } from './store.ts'
@@ -53,6 +50,8 @@ export interface CustomProviderCardProps {
   taken: readonly string[]
   /** Wire protocols the adapter can serve, in the order it reports them. */
   protocols: readonly string[]
+  /** Canonical thinking levels accepted by the pi-ai settings schema. */
+  reasoningLevels: readonly string[]
   /**
    * Revision of the `llm-pi-ai` user section this card opened at, sent with
    * the create so a route another tab declared meanwhile is a refusal rather
@@ -101,7 +100,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   // Rows are checked by the same per-row validator the editor cards use, so a
   // bad row is named by its position here too. Capacities have route-level
   // fallbacks; what a route cannot default is at least one model.
-  const modelFailure = validateDeepSeekModels(models)
+  const modelFailure = validatePiAiModels(models)
   const keyFailure = apiKeyFailure(keyDraft)
   // The typed key with paste whitespace removed. A blank field yields an empty
   // string, which the create path reads as "no key supplied" — a route may
@@ -264,6 +263,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
       </div>
       <ModelListEditor
         models={models}
+        reasoningLevels={props.reasoningLevels}
         onChange={setModels}
         probe={{
           settingsNs: NS,
