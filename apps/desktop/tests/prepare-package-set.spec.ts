@@ -61,6 +61,27 @@ describe('desktop package-set selection', () => {
     ]))).toThrow(/omit @deepseek-ai\/dsh-desktop-host/u)
   })
 
+  it('includes experimental packages when required by Desktop Host and available in inputs', () => {
+    const available = new Map<string, PackedDesktopPackage>([
+      ['@deepseek-ai/dsh', packed('@deepseek-ai/dsh')],
+      ['@deepseek-ai/dsh-desktop-host', packed('@deepseek-ai/dsh-desktop-host', {
+        dependencies: {
+          '@deepseek-ai/dsh': '^1.0.0',
+          '@deepseek-ai/dsh-experimental-auto-mode-forge': '^1.0.0',
+          '@deepseek-ai/dsh-experimental-client-ui-brand-forge': '^1.0.0',
+        },
+      })],
+      ['@deepseek-ai/dsh-experimental-auto-mode-forge', packed('@deepseek-ai/dsh-experimental-auto-mode-forge')],
+      ['@deepseek-ai/dsh-experimental-client-ui-brand-forge', packed('@deepseek-ai/dsh-experimental-client-ui-brand-forge')],
+    ])
+    expect(selectDesktopPackageClosure(available).map(entry => entry.manifest.name)).toEqual([
+      '@deepseek-ai/dsh',
+      '@deepseek-ai/dsh-desktop-host',
+      '@deepseek-ai/dsh-experimental-auto-mode-forge',
+      '@deepseek-ai/dsh-experimental-client-ui-brand-forge',
+    ])
+  })
+
   it('requires the Desktop Host entry and its packaged overlay', () => {
     const files = [
       'package/lib/index.js',

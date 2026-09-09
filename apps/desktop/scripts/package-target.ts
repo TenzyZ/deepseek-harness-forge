@@ -94,7 +94,22 @@ function packageVersion(path: string, label: string): string {
   return manifest.version
 }
 
-function writeReleaseRecord(
+/**
+ * Experimental packages required by Desktop Host that are packed into the
+ * Desktop dsh closure without adding them to the global release family.
+ */
+export const DESKTOP_EXPERIMENTAL_PACK_DIRECTORIES = [
+  'packages/experimental/auto-mode-forge',
+  'packages/experimental/client-ui-brand-forge',
+] as const
+
+/**
+ * Write the target build record into the artifacts directory.
+ * @param target - Supported release target.
+ * @param environment - Packaging process environment.
+ * @param artifactsRoot - Artifacts destination directory.
+ */
+export function writeReleaseRecord(
   target: DesktopPackageTarget,
   environment: NodeJS.ProcessEnv,
   artifactsRoot: string,
@@ -107,13 +122,16 @@ function writeReleaseRecord(
   const update = resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
   const recordPath = join(artifactsRoot, desktopBuildRecordFilename(target.name))
   const temporaryPath = `${recordPath}.tmp`
-  writeFileSync(temporaryPath, `${JSON.stringify({
+  const record: Record<string, unknown> = {
     schemaVersion: 1,
     target: target.name,
     version: dshVersion,
     environment: update.environment,
-    publicUrl: update.publicUrl,
-  }, null, 2)}\n`)
+  }
+  if (update.publicUrl !== undefined) {
+    record.publicUrl = update.publicUrl
+  }
+  writeFileSync(temporaryPath, `${JSON.stringify(record, null, 2)}\n`)
   renameSync(temporaryPath, recordPath)
 }
 
@@ -263,6 +281,15 @@ async function main(): Promise<void> {
     '--pack-destination',
     buildPaths.packedDsh,
   ], buildEnv, REPOSITORY_ROOT)
+  for (const directory of DESKTOP_EXPERIMENTAL_PACK_DIRECTORIES) {
+    await runPnpm([
+      '--dir',
+      directory,
+      'pack',
+      '--pack-destination',
+      buildPaths.packedDsh,
+    ], buildEnv, REPOSITORY_ROOT)
+  }
   await runPnpm(['run', 'release:pack', '--family', 'vendor', '--out', buildPaths.packedVendor], buildEnv, REPOSITORY_ROOT)
   rmSync(buildPaths.packedLandlock, { recursive: true, force: true })
   mkdirSync(buildPaths.packedLandlock, { recursive: true })

@@ -1,5 +1,5 @@
 ---
-description: "面向会话首屏署名槽位的 DSH Forge 署名填充，仅组合进桌面 Forge 构建；供该部署身份的维护者阅读。"
+description: "面向会话首屏署名与侧栏品牌名称槽位的 DSH Forge 身份填充，组合进桌面 Forge；供该部署身份的维护者阅读。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包向单个槽位——`conversation.hero.attribution`——填充 DSH Forge 桌面部署的三行身份：产品名称、作者，以及“基于 DeepSeek Harness 构建”这一如实陈述。它不占用其他任何槽位：侧栏品牌、首屏标志、标题与 Preview 徽标全部保持其声明包原有的渲染。只有桌面组合会插入该行，因此 Web 产品的首屏保持不变。本包为仓库内私有包，从不发布，不保留运行时状态，也不向模型请求贡献任何内容。
+本包向两个呈现槽位——会话首屏署名（填充 DSH Forge、作者以及基于 DeepSeek Harness 构建的三行声明）与侧栏品牌名称（渲染“DSH Forge”）——提供身份内容。它不占用其他槽位：由于桌面覆盖层禁用了 ui-brand-official，侧栏图标回退为 FishLogo，而首屏标志、标题与 Preview 徽标保持原有渲染。只有桌面组合会插入本插件，Web 产品完全不受影响。本包为仓库内私有包，从不发布，不保留运行时状态，也不向模型请求贡献任何内容。
 
 ## 目录
 
@@ -39,7 +39,7 @@ kind: "package-reference"
 <details>
 <summary>实现内幕——点击展开</summary>
 
-`apply` 以 effect 形式通过 `ctx.locale.register` 注册 `brandForge` 词典，随后在 `ctx.slots.inject` 内占用槽位，因此无论本行在 `ui-conversation` 声明该槽位之前还是之后激活，填充都会安装，并在该声明消失时撤出。浏览器半边是 [`src/client/index.ts`](src/client/index.ts)；节点半边是空的 Loader 座位。
+`apply` 以 effect 形式通过 `ctx.locale.register` 注册 `brandForge` 词典，随后在 `ctx.slots.inject` 内占用 `conversation.hero.attribution` 与 `sidebar.brand.name`，因此无论本行在声明包之前还是之后激活，填充都会安装，并在声明消失时撤出。浏览器半边是 [`src/client/index.ts`](src/client/index.ts)；节点半边是空的 Loader 座位。
 
 </details>
 
@@ -70,7 +70,7 @@ kind: "package-reference"
 
 这些限制界定署名的供给方式。它们是当前的包约束，不是品牌设计对比，也不是任务待办。
 
-- **单一填充** — 本包只填充首屏署名槽位，不填充其他；第二个 Forge 呈现面需要自己的决策。
+- **两处填充** — 本包填充 `conversation.hero.attribution` 与 `sidebar.brand.name`；侧栏图标回退到默认的 `FishLogo` 标志。
 - **没有配置面** — 不同措辞应放进占用同一槽位的另一个包，而不是配置字段。
 
 <a id="dev-note"></a>
@@ -83,4 +83,4 @@ kind: "package-reference"
 
 </details>
 
-**运行时不变量：** 不发布伴生物。本包不保留可变状态，其词典与单个槽位填充通过各自的 effect 安装与撤出。
+**运行时不变量：** 不发布伴生物。本包不保留可变状态，其词典与槽位填充通过各自的 effect 安装与撤出。

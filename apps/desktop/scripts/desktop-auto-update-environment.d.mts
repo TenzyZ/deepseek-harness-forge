@@ -2,22 +2,39 @@
 export const DESKTOP_AUTO_UPDATE_ENV: 'DSH_DESKTOP_AUTO_UPDATE_ENV'
 
 /** Supported Desktop update deployment. */
-export type DesktopAutoUpdateEnvironment = 'test' | 'production'
+export type DesktopAutoUpdateEnvironment = 'test' | 'production' | 'none'
+
+/** Uploadable Desktop update deployment. */
+export type DesktopUploadEnvironment = 'test' | 'production'
 
 /** Directory name of one supported Desktop release target. */
 export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64'
 
-/** Public updater URL for one release target. */
-export interface DesktopAutoUpdateConfig {
-  readonly environment: DesktopAutoUpdateEnvironment
+/** Active public updater configuration. */
+export interface DesktopActiveAutoUpdateConfig {
+  readonly environment: DesktopUploadEnvironment
   readonly target: DesktopAutoUpdateTarget
   readonly origin: string
   readonly publicUrl: string
   readonly keyPrefix: string
 }
 
+/** Disabled updater configuration for local or no-update packaging. */
+export interface DesktopDisabledAutoUpdateConfig {
+  readonly environment: 'none'
+  readonly target: DesktopAutoUpdateTarget
+  readonly origin?: undefined
+  readonly publicUrl?: undefined
+  readonly keyPrefix?: undefined
+}
+
+/** Public updater configuration for one release target. */
+export type DesktopAutoUpdateConfig =
+  | DesktopActiveAutoUpdateConfig
+  | DesktopDisabledAutoUpdateConfig
+
 /** Public updater URL and private COS destination for one upload target. */
-export interface DesktopUploadConfig extends DesktopAutoUpdateConfig {
+export interface DesktopUploadConfig extends DesktopActiveAutoUpdateConfig {
   readonly bucket: string
   readonly secretIdEnvName: string
   readonly secretKeyEnvName: string
@@ -81,7 +98,7 @@ export function resolveDesktopAutoUpdateConfig(
  * @param platform - Target Node.js platform.
  * @param arch - Target Node.js architecture.
  * @returns Resolved upload configuration.
- * @throws When the selected deployment lacks a required origin or bucket, or the test origin is not HTTPS.
+ * @throws When the selected deployment lacks a required origin or bucket, the test origin is not HTTPS, or the environment is "none".
  */
 export function resolveDesktopUploadConfig(
   env: NodeJS.ProcessEnv,

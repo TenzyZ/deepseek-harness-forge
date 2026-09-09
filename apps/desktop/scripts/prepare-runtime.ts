@@ -2,12 +2,25 @@
 
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { cpSync, createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  cpSync,
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { chmod, readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream/promises'
-import extractZip from 'extract-zip'
+import { inflateRawSync } from 'node:zlib'
 import { extract } from 'tar'
 import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 
@@ -36,6 +49,89 @@ async function download(url: string, path: string): Promise<void> {
   writeFileSync(path, new Uint8Array(await response.arrayBuffer()), { mode: 0o600 })
 }
 
+/**
+ * Extract a zip archive to a target directory.
+ * Reads the central directory and decompresses stored and deflate entries synchronously, rejecting
+ * entry names that resolve outside the destination. Replaces `extract-zip`, whose extraction does not
+ * settle on the pinned Node.js Windows archive under Node 26.
+ * @param archive - Path to the zip archive file.
+ * @param options - Extraction options including destination directory.
+ */
+export function extractZip(archive: string, options: { dir: string }): void {
+  const fd = openSync(archive, 'r')
+  try {
+    const size = fstatSync(fd).size
+    if (size < 22) throw new Error(`desktop runtime: ${archive} is too small to be a valid zip archive`)
+    const searchLen = Math.min(size, 65557)
+    const buf = Buffer.alloc(searchLen)
+    readSync(fd, buf, 0, searchLen, size - searchLen)
+    let eocdOffset = -1
+    for (let i = searchLen - 22; i >= 0; i--) {
+      if (buf.readUInt32LE(i) === 0x06054b50) {
+        eocdOffset = size - searchLen + i
+        break
+      }
+    }
+    if (eocdOffset === -1) throw new Error(`desktop runtime: ${archive} missing zip EOCD record`)
+    const eocd = Buffer.alloc(22)
+    readSync(fd, eocd, 0, 22, eocdOffset)
+    const entryCount = eocd.readUInt16LE(10)
+    const cdSize = eocd.readUInt32LE(12)
+    const cdOffset = eocd.readUInt32LE(16)
+    const cdBuffer = Buffer.alloc(cdSize)
+    readSync(fd, cdBuffer, 0, cdSize, cdOffset)
+
+    const resolvedTargetDir = resolve(options.dir)
+    let pos = 0
+    for (let i = 0; i < entryCount; i++) {
+      if (cdBuffer.readUInt32LE(pos) !== 0x02014b50) {
+        throw new Error(`desktop runtime: ${archive} corrupted central directory header at entry ${String(i)}`)
+      }
+      const compression = cdBuffer.readUInt16LE(pos + 10)
+      const compressedSize = cdBuffer.readUInt32LE(pos + 20)
+      const uncompressedSize = cdBuffer.readUInt32LE(pos + 24)
+      const fileNameLen = cdBuffer.readUInt16LE(pos + 28)
+      const extraLen = cdBuffer.readUInt16LE(pos + 30)
+      const commentLen = cdBuffer.readUInt16LE(pos + 32)
+      const localHeaderOffset = cdBuffer.readUInt32LE(pos + 42)
+      const fileName = cdBuffer.toString('utf8', pos + 46, pos + 46 + fileNameLen)
+      pos += 46 + fileNameLen + extraLen + commentLen
+
+      const outPath = resolve(resolvedTargetDir, fileName)
+      if (!outPath.startsWith(resolvedTargetDir + sep) && outPath !== resolvedTargetDir) {
+        throw new Error(`desktop runtime: ${archive} entry ${fileName} escapes extraction directory`)
+      }
+      if (fileName.endsWith('/')) {
+        mkdirSync(outPath, { recursive: true })
+        continue
+      }
+      mkdirSync(dirname(outPath), { recursive: true })
+      const localHeader = Buffer.alloc(30)
+      readSync(fd, localHeader, 0, 30, localHeaderOffset)
+      const localNameLen = localHeader.readUInt16LE(26)
+      const localExtraLen = localHeader.readUInt16LE(28)
+      const dataOffset = localHeaderOffset + 30 + localNameLen + localExtraLen
+
+      const compressedData = Buffer.alloc(compressedSize)
+      readSync(fd, compressedData, 0, compressedSize, dataOffset)
+      let data: Buffer
+      if (compression === 0) {
+        data = compressedData
+      } else if (compression === 8) {
+        data = inflateRawSync(compressedData)
+      } else {
+        throw new Error(`desktop runtime: unsupported compression method ${String(compression)} in ${archive}`)
+      }
+      if (data.length !== uncompressedSize) {
+        throw new Error(`desktop runtime: uncompressed size mismatch for ${fileName}`)
+      }
+      writeFileSync(outPath, data)
+    }
+  } finally {
+    closeSync(fd)
+  }
+}
+
 async function prepareNode(platform: RuntimePlatform, arch: RuntimeArch): Promise<void> {
   const extension = platform === 'win' ? 'zip' : 'tar.gz'
   const folder = `node-v${NODE_VERSION}-${platform}-${arch}`
@@ -55,7 +151,7 @@ async function prepareNode(platform: RuntimePlatform, arch: RuntimeArch): Promis
   const extraction = BUILD_PATHS.nodeExtract
   rmSync(extraction, { recursive: true, force: true })
   mkdirSync(extraction, { recursive: true })
-  if (platform === 'win') await extractZip(archive, { dir: extraction })
+  if (platform === 'win') extractZip(archive, { dir: extraction })
   else await extract({ cwd: extraction, file: archive })
   const source = join(extraction, folder, platform === 'win' ? 'node.exe' : 'bin/node')
   const destinationRoot = join(RUNTIME_ROOT, 'node')
@@ -104,4 +200,4 @@ async function main(): Promise<void> {
   }, undefined, 2)}\n`)
 }
 
-await main()
+if (process.argv[1] !== undefined && import.meta.filename === resolve(process.argv[1])) await main()
