@@ -15,6 +15,7 @@ import { ModelsSettingsStore, deriveKeyRef, protocolChoices } from '../src/clien
 import { createModelsOperations } from '../src/client/operations.ts'
 import type { ModelsOperations } from '../src/client/operations.ts'
 import { en } from '../src/client/locales.ts'
+import { reasoningChoices, validatePiAiModels } from '../src/client/model-reasoning.ts'
 import { settingsSchema } from './settings-schema.client.ts'
 
 afterEach(cleanup)
@@ -36,8 +37,9 @@ const PiAiConfig = Schema.object({
       name: Schema.string(),
       contextWindow: Schema.number(),
       maxTokens: Schema.number(),
+      reasoningEfforts: Schema.union([Schema.const(false), Schema.dict(Schema.union([Schema.string(), Schema.const(null)]))]),
     })),
-    reasoning: Schema.union(['off', 'high']),
+    reasoning: Schema.union(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']),
   })),
 })
 
@@ -227,7 +229,7 @@ function openEditor(provider: string): void {
 
 /** Open one model row's advanced fold, where the capacities live. */
 function expandModel(index: number): void {
-  fireEvent.click(screen.getByLabelText(`${en.modelAdvanced} ${index}`))
+  fireEvent.click(screen.getByLabelText(`${en.modelDetails} ${index}`))
 }
 
 /** The button carrying `label`, typed so its disabled/title state is readable. */
@@ -256,6 +258,75 @@ describe('protocolChoices', () => {
 })
 
 describe('model list editing', () => {
+  it('declares supported levels and wire values without changing other model fields or rows', async () => {
+    const model = { id: 'think', name: 'Think', input: ['text', 'image'], compat: { supportsStore: false } }
+    const untouched = { id: 'plain', contextWindow: 12345 }
+    const { mutate } = await mountSection({ providers: { openai: { models: [model, untouched] } } })
+    openEditor('openai')
+    expandModel(1)
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoning} 1`), { target: { value: 'custom' } })
+    expect(buttonNamed(en.apply).disabled).toBe(true)
+    expect(screen.getAllByRole('checkbox')).toHaveLength(7)
+    for (const level of ['off', 'high', 'max']) {
+      fireEvent.click(screen.getByLabelText(`${en.modelReasoningSupported} ${level} 1`))
+    }
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoningWire} max 1`), { target: { value: 'ultra' } })
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    expect(firstMutate(mutate).ops[0]?.value).toEqual([
+      { ...model, reasoningEfforts: { off: null, high: 'high', max: 'ultra' } }, untouched,
+    ])
+  })
+
+  it('removes a supported effort and round-trips both off wire spellings', async () => {
+    const { mutate } = await mountSection({ providers: { openai: { models: [
+      { id: 'think', reasoningEfforts: { off: 'none', low: 'small', max: 'ultra' } },
+      { id: 'quiet', reasoningEfforts: { off: 'none', high: 'high' } },
+    ] } } })
+    openEditor('openai')
+    expandModel(1)
+    expandModel(2)
+    expect(screen.getByLabelText<HTMLInputElement>(`${en.modelReasoningWire} off 1`).value).toBe('none')
+    fireEvent.click(screen.getByLabelText(`${en.modelReasoningSupported} low 1`))
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoningWire} max 1`), { target: { value: '' } })
+    expect(buttonNamed(en.apply).disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoningWire} max 1`), { target: { value: 'ultra' } })
+    // The two spellings `off` alone accepts: emptied is the valueless form
+    // dispatch sends as "omit the effort parameter", while a typed value is
+    // sent as written. Only `off` may be emptied, so both land on one row each.
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoningWire} off 1`), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoningWire} off 2`), { target: { value: 'deep' } })
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    expect(firstMutate(mutate).ops[0]?.value).toEqual([
+      { id: 'think', reasoningEfforts: { off: null, max: 'ultra' } },
+      { id: 'quiet', reasoningEfforts: { off: 'deep', high: 'high' } },
+    ])
+  })
+
+  it.each(['inherit', 'disabled'])('sets the model capability to %s', async (mode) => {
+    const { mutate } = await mountSection({ providers: { openai: { models: [{
+      id: 'think', input: ['image'], reasoningEfforts: { high: 'high' },
+    }] } } })
+    openEditor('openai')
+    expandModel(1)
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoning} 1`), { target: { value: mode } })
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    expect(firstMutate(mutate).ops[0]?.value).toEqual([
+      { id: 'think', input: ['image'], ...mode === 'disabled' ? { reasoningEfforts: false } : {} },
+    ])
+  })
+
+  it('reads schema choices and rejects empty or valueless thinking declarations', () => {
+    expect(reasoningChoices(undefined, settingsSchema)).toEqual([])
+    expect(reasoningChoices({ ...scriptedFace().namespace, schema: {} }, settingsSchema)).toEqual([])
+    for (const reasoningEfforts of [{}, { off: null }, { high: null }, { high: '' }]) {
+      expect(validatePiAiModels([{ id: 'm', reasoningEfforts }])).toEqual({ index: 0, key: 'modelReasoningInvalid' })
+    }
+    expect(validatePiAiModels([{ id: 'm', reasoningEfforts: false }])).toBeUndefined()
+  })
+
   it('adds, edits, and removes rows without storing emptied optional fields', async () => {
     const { mutate } = await mountSection()
     openEditor('openai')
@@ -601,6 +672,7 @@ describe('endpoint interrogation', () => {
     render(
       <CustomProviderCard
         taken={[]} protocols={PROTOCOLS} revision={7} operations={operationsWith(scripted.face)}
+        reasoningLevels={reasoningChoices(scripted.namespace, settingsSchema)}
         t={t} readOnly={false} onClose={vi.fn()}
       />,
     )
@@ -770,6 +842,7 @@ describe('hand-declared providers', () => {
       <CustomProviderCard
         taken={['openai']}
         protocols={PROTOCOLS}
+        reasoningLevels={reasoningChoices(scripted.namespace, settingsSchema)}
         revision={7}
         operations={operationsWith(scripted.face)}
         t={t}
@@ -792,6 +865,12 @@ describe('hand-declared providers', () => {
     fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'acme-large' } })
     expandModel(1)
     fireEvent.change(screen.getByLabelText(`${en.modelContextWindow} 1`), { target: { value: '65536' } })
+    // A custom declaration naming no level is refused here rather than by the
+    // route, so the create card names the row while the user is still on it.
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoning} 1`), { target: { value: 'custom' } })
+    expect(buttonNamed(en.create).disabled).toBe(true)
+    expect(screen.getByText(`${en.model} 1: ${en.modelReasoningInvalid}`)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(`${en.modelReasoning} 1`), { target: { value: 'inherit' } })
     fireEvent.click(screen.getByText(en.create))
 
     await waitFor(() => { expect(onClose).toHaveBeenCalledWith(true) })

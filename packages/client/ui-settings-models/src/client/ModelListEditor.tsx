@@ -64,6 +64,8 @@ export interface ProbeTarget {
 export interface ModelListEditorProps {
   /** The rows as currently drafted. */
   models: readonly ModelDraft[]
+  /** Canonical thinking levels accepted by the pi-ai settings schema. */
+  reasoningLevels: readonly string[]
   /** Whether the user layer currently owns the whole array; absent on a create. */
   overridden?: boolean
   /** Replace the drafted rows. */
@@ -209,7 +211,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
-  const patch = (index: number, next: Record<string, string | number | undefined>): void => {
+  const patch = (index: number, next: Record<string, unknown>): void => {
     onChange(models.map((model, at) => {
       if (at !== index) return model
       // Rebuilt rather than spread over: an emptied optional field has to leave
@@ -371,9 +373,9 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             <button
               type="button"
               className={styles['iconButton']}
-              aria-label={`${t('modelAdvanced')} ${index + 1}`}
+              aria-label={`${t('modelDetails')} ${index + 1}`}
               aria-expanded={expanded.has(index)}
-              title={t('modelAdvanced')}
+              title={t('modelDetails')}
               onClick={() => { toggleExpanded(index) }}
             >
               <IconChevron open={expanded.has(index)} />
@@ -433,6 +435,57 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                     onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
                   />
                 </label>
+                <fieldset className={styles['modelReasoning']} disabled={disabled}>
+                  <legend className={styles['modelFieldLabel']}>{t('modelReasoning')}</legend>
+                  <select
+                    className={`${styles['input']} ${styles['selectInput']}`}
+                    aria-label={`${t('modelReasoning')} ${index + 1}`}
+                    value={model['reasoningEfforts'] === undefined ? 'inherit'
+                      : model['reasoningEfforts'] === false ? 'disabled' : 'custom'}
+                    onChange={(event) => { patch(index, {
+                      reasoningEfforts: event.target.value === 'inherit' ? undefined
+                        : event.target.value === 'disabled' ? false : {},
+                    }) }}
+                  >
+                    <option value="inherit">{t('modelReasoningInherit')}</option>
+                    <option value="disabled">{t('modelReasoningDisabled')}</option>
+                    <option value="custom">{t('modelReasoningCustom')}</option>
+                  </select>
+                  {typeof model['reasoningEfforts'] === 'object' && model['reasoningEfforts'] !== null
+                    ? props.reasoningLevels.map((level) => {
+                      const efforts = model['reasoningEfforts'] as Record<string, unknown>
+                      const selected = Object.hasOwn(efforts, level)
+                      return (
+                        <div key={level} className={styles['modelRow']}>
+                          <label>
+                            <input
+                              type="checkbox"
+                              aria-label={`${t('modelReasoningSupported')} ${level} ${index + 1}`}
+                              checked={selected}
+                              onChange={(event) => {
+                                patch(index, { reasoningEfforts: event.target.checked
+                                  ? { ...efforts, [level]: level === 'off' ? null : level }
+                                  : Object.fromEntries(Object.entries(efforts).filter(([key]) => key !== level)) })
+                              }}
+                            /> {level}
+                          </label>
+                          {selected ? (
+                            <input
+                              className={styles['input']}
+                              type="text"
+                              aria-label={`${t('modelReasoningWire')} ${level} ${index + 1}`}
+                              placeholder={level === 'off' ? t('modelReasoningOmit') : level}
+                              value={typeof efforts[level] === 'string' ? efforts[level] : ''}
+                              onChange={(event) => { patch(index, { reasoningEfforts: {
+                                ...efforts,
+                                [level]: level === 'off' && event.target.value === '' ? null : event.target.value,
+                              } }) }}
+                            />
+                          ) : null}
+                        </div>
+                      )
+                    }) : null}
+                </fieldset>
               </div>
             )
             : null}

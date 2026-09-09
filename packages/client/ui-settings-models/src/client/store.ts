@@ -20,7 +20,7 @@ import type { SettingsSchemaOperations } from './schema-operations.ts'
  * Any route key walks a dict schema to the same profile node, so the lookup
  * names one that cannot collide with a configured route.
  */
-const PROBE_ROUTE = '\u0000probe'
+export const PROBE_ROUTE = '\u0000probe'
 
 /** One provider row after joining the configurable directory with live routes. */
 export interface ProviderDirectoryEntry {
