@@ -26,6 +26,25 @@
     - credentials
   config: {}
 
+- id: permission
+  config:
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: ask
+        name: Read & Plan
+        description: Read, inspect, search, and plan with no standing write access. Writes require approval.
+      workspace-write:
+        sandbox: workspace-write
+        approval: ask
+        name: Auto Mode
+        description: Works automatically inside the workspace and asks before elevated or high-risk actions.
+      danger-full-access:
+        sandbox: danger-full-access
+        approval: never
+        name: Full Access
+        description: Runs without normal filesystem confinement. Use only when you explicitly want unrestricted access.
+
 - insert:
     - id: directory-picker-native
       name: '@deepseek-ai/dsh-host-directory-picker-native'
@@ -36,3 +55,6 @@
     # DSH Forge identifies itself under the hero; the Web product does not.
     - id: ui-brand-forge
       name: '@deepseek-ai/dsh-experimental-client-ui-brand-forge'
+
+    - id: auto-mode-forge
+      name: '@deepseek-ai/dsh-experimental-auto-mode-forge'
