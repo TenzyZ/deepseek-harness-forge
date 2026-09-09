@@ -1,0 +1,14 @@
+version: 1
+scenario: forge-auto-mode-ask
+profile: headless
+composition: forge-auto-mode
+recording: authored
+header:
+  class: forge-auto-mode
+  pin: true
+  systemPromptSource: pwsh-tool-turn
+  toolSchemasSource: pwsh-tool-turn
+replay:
+  override: true
+permission: workspace-write
+platform: pwsh
