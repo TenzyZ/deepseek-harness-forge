@@ -4,14 +4,15 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { apply, inject } from '../src/client/index.ts'
+import { apply, ForgeBrandName, type ForgeBrandNameProps, inject } from '../src/client/index.ts'
 import { ForgeAttribution, type ForgeAttributionProps } from '../src/client/Attribution.tsx'
 import { en, zh } from '../src/client/locales.ts'
 import { apply as hostApply } from '../src/index.ts'
 
 afterEach(cleanup)
 
-const HOLE = 'conversation.hero.attribution'
+const HERO_HOLE = 'conversation.hero.attribution'
+const SIDEBAR_NAME_HOLE = 'sidebar.brand.name'
 
 async function bench(declare = true) {
   const ctx = new Context()
@@ -21,12 +22,15 @@ async function bench(declare = true) {
   locale.setLocale('en')
   ctx.provide('locale', locale)
   const slots = ctx.get('slots') as SlotRegistry
-  const declareHole = () => slots.register({
+  const declareHoles = () => slots.register({
     name: 'root',
-    children: { [HOLE]: { kind: 'single', scope: 'root' } },
+    children: {
+      [HERO_HOLE]: { kind: 'single', scope: 'root' },
+      [SIDEBAR_NAME_HOLE]: { kind: 'single', scope: 'root' },
+    },
   } as never, () => null)
-  const disposeHole = declare ? declareHole() : undefined
-  return { ctx, slots, locale, declareHole, disposeHole }
+  const disposeHoles = declare ? declareHoles() : undefined
+  return { ctx, slots, locale, declareHoles, disposeHoles }
 }
 
 describe('DSH Forge attribution plugin', () => {
@@ -38,7 +42,7 @@ describe('DSH Forge attribution plugin', () => {
     expect(inject).toEqual(['slots', 'locale'])
   })
 
-  it('registers its dictionaries and fills the hero attribution slot', async () => {
+  it('registers its dictionaries and fills the hero attribution and sidebar brand name slots', async () => {
     const subject = await bench()
     const fiber = subject.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -46,33 +50,48 @@ describe('DSH Forge attribution plugin', () => {
     expect(t('attribution.product')).toBe('DSH Forge')
     expect(t('attribution.author')).toBe('by Tenzy')
     expect(t('attribution.upstream')).toBe('Built on DeepSeek Harness')
-    expect(subject.slots.entries(HOLE)).toHaveLength(1)
+    expect(subject.slots.entries(HERO_HOLE)).toHaveLength(1)
+    expect(subject.slots.entries(SIDEBAR_NAME_HOLE)).toHaveLength(1)
 
     await fiber.dispose()
-    expect(subject.slots.entries(HOLE)).toHaveLength(0)
+    expect(subject.slots.entries(HERO_HOLE)).toHaveLength(0)
+    expect(subject.slots.entries(SIDEBAR_NAME_HOLE)).toHaveLength(0)
   })
 
-  it('carries the locale seat on its registration', async () => {
+  it('carries the locale seat on its registrations', async () => {
     const subject = await bench()
     await subject.ctx.plugin({ inject: [...inject], apply }).await()
-    expect(subject.slots.entries(HOLE)[0]?.locale).toBe('brandForge')
+    expect(subject.slots.entries(HERO_HOLE)[0]?.locale).toBe('brandForge')
+    expect(subject.slots.entries(SIDEBAR_NAME_HOLE)[0]?.locale).toBe('brandForge')
   })
 
-  it('fills the declaration whether it lands before or after apply', async () => {
+  it('fills declarations whether they land before or after apply', async () => {
     const before = await bench()
     await before.ctx.plugin({ inject: [...inject], apply }).await()
-    before.disposeHole?.()
-    expect(before.slots.entries(HOLE)).toHaveLength(0)
-    before.declareHole()
+    before.disposeHoles?.()
+    expect(before.slots.entries(HERO_HOLE)).toHaveLength(0)
+    expect(before.slots.entries(SIDEBAR_NAME_HOLE)).toHaveLength(0)
+    before.declareHoles()
     await Promise.resolve()
-    expect(before.slots.entries(HOLE)).toHaveLength(1)
+    expect(before.slots.entries(HERO_HOLE)).toHaveLength(1)
+    expect(before.slots.entries(SIDEBAR_NAME_HOLE)).toHaveLength(1)
 
     const after = await bench(false)
     await after.ctx.plugin({ inject: [...inject], apply }).await()
-    expect(after.slots.entries(HOLE)).toHaveLength(0)
-    after.declareHole()
+    expect(after.slots.entries(HERO_HOLE)).toHaveLength(0)
+    expect(after.slots.entries(SIDEBAR_NAME_HOLE)).toHaveLength(0)
+    after.declareHoles()
     await Promise.resolve()
-    expect(after.slots.entries(HOLE)).toHaveLength(1)
+    expect(after.slots.entries(HERO_HOLE)).toHaveLength(1)
+    expect(after.slots.entries(SIDEBAR_NAME_HOLE)).toHaveLength(1)
+  })
+
+  it('renders the sidebar brand name as DSH Forge', () => {
+    const tEn = ((key: keyof typeof en) => en[key]) as ForgeBrandNameProps['t']
+    expect(ForgeBrandName({ t: tEn } as ForgeBrandNameProps)).toBe('DSH Forge')
+
+    const tZh = ((key: keyof typeof zh) => zh[key]) as ForgeBrandNameProps['t']
+    expect(ForgeBrandName({ t: tZh } as ForgeBrandNameProps)).toBe('DSH Forge')
   })
 
   it('renders the exact three attribution lines', () => {

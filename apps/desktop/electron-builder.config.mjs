@@ -47,8 +47,8 @@ export function createElectronBuilderConfig(
   const buildPaths = desktopTargetBuildPaths(update.target)
   return {
     appId,
-    productName: 'DeepSeek Harness',
-    artifactName: 'deepseek-harness-${version}-${os}-${arch}.${ext}',
+    productName: 'DSH Forge',
+    artifactName: 'dsh-forge-${version}-${os}-${arch}.${ext}',
     directories: { output: buildPaths.artifacts },
     asar: true,
     files: [
@@ -102,7 +102,9 @@ export function createElectronBuilderConfig(
       allowToChangeInstallationDirectory: true,
       differentialPackage: true,
     },
-    publish: [{ provider: 'generic', url: update.publicUrl }],
+    publish: update.environment === 'none'
+      ? null
+      : [{ provider: 'generic', url: update.publicUrl }],
   }
 }
 

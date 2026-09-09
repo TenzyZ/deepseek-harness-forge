@@ -1,11 +1,21 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
+  DESKTOP_EXPERIMENTAL_PACK_DIRECTORIES,
   desktopElectronBuilderArguments,
   parseDesktopPackageInvocation,
   resolveDesktopPackageTarget,
   withoutDesktopUploadCredentials,
   withoutWindowsSigningEnvironment,
+  writeReleaseRecord,
 } from '../scripts/package-target.ts'
+
+vi.mock('../scripts/windows-sign.mjs', () => ({
+  createWindowsTokenSigner: vi.fn(),
+  installWindowsNsisBootstrapSigner: vi.fn(),
+}))
 
 describe('desktop package target', () => {
   it('selects matching runtime and electron-builder architectures', () => {
@@ -82,5 +92,83 @@ describe('desktop package target', () => {
       DOWNLOAD_PROD_COS_BUCKET: 'production-download-bucket',
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
     })
+  })
+
+  it('declares the experimental packages required by Desktop Host', () => {
+    expect(DESKTOP_EXPERIMENTAL_PACK_DIRECTORIES).toEqual([
+      'packages/experimental/auto-mode-forge',
+      'packages/experimental/client-ui-brand-forge',
+    ])
+  })
+
+  it('writes a release record omitting publicUrl when auto-update environment is none', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'dsh-release-record-'))
+    try {
+      const target = resolveDesktopPackageTarget('win-x64', 'win32', 'x64')
+      writeReleaseRecord(target, { DSH_DESKTOP_AUTO_UPDATE_ENV: 'none' }, tempDir)
+      const content = JSON.parse(readFileSync(join(tempDir, 'win-x64-release.json'), 'utf8')) as {
+        schemaVersion: number
+        target: string
+        environment: string
+        publicUrl?: string
+      }
+      expect(content).toMatchObject({
+        schemaVersion: 1,
+        target: 'win-x64',
+        environment: 'none',
+      })
+      expect(content.publicUrl).toBeUndefined()
+    }
+    finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('electron-builder forge configuration', () => {
+  beforeAll(() => {
+    vi.stubEnv('DSH_DESKTOP_APP_ID', 'com.example.forge')
+    vi.stubEnv('DSH_DESKTOP_AUTO_UPDATE_ENV', 'none')
+  })
+
+  afterAll(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('identifies as DSH Forge with dsh-forge artifact naming and publish null when none', async () => {
+    const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
+    const config = createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: 'com.example.forge',
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'none',
+      DSH_DESKTOP_TARGET_PLATFORM: 'win32',
+      DSH_DESKTOP_TARGET_ARCH: 'x64',
+    }, 'win32', 'x64')
+    expect(config.productName).toBe('DSH Forge')
+    expect(config.artifactName).toBe('dsh-forge-${version}-${os}-${arch}.${ext}')
+    expect(config.publish).toBeNull()
+  })
+
+  it('keeps generic publish config when update deployment is production or test', async () => {
+    const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
+    const prodConfig = createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: 'com.example.forge',
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+      DSH_DESKTOP_TARGET_PLATFORM: 'win32',
+      DSH_DESKTOP_TARGET_ARCH: 'x64',
+    }, 'win32', 'x64')
+    expect(prodConfig.publish).toEqual([
+      { provider: 'generic', url: 'https://download.deepseek.com/_/harness/desktop/stable/win-x64/' },
+    ])
+
+    const testConfig = createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: 'com.example.forge',
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'test',
+      DOWNLOAD_TEST_ORIGIN: 'https://desktop-updates.example.com',
+      DSH_DESKTOP_TARGET_PLATFORM: 'win32',
+      DSH_DESKTOP_TARGET_ARCH: 'x64',
+    }, 'win32', 'x64')
+    expect(testConfig.publish).toEqual([
+      { provider: 'generic', url: 'https://desktop-updates.example.com/_/harness/desktop/stable/win-x64/' },
+    ])
   })
 })

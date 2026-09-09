@@ -102,12 +102,13 @@ Each target owns its packed package inputs, prepared runtime, package set, seed,
 
 ### Upload updates
 
-`DSH_DESKTOP_AUTO_UPDATE_ENV` selects `test` or `production` for both the URL embedded during packaging and the later COS upload; an absent value selects `test`. Test packaging requires its HTTPS origin in `DOWNLOAD_TEST_ORIGIN`, while the production origin remains `https://download.deepseek.com`. Upload additionally requires the selected deployment's COS bucket in `DOWNLOAD_TEST_COS_BUCKET` or `DOWNLOAD_PROD_COS_BUCKET`. The target path is `_/harness/desktop/stable/<target>/`, where `target` is `mac-arm64`, `mac-x64`, or `win-x64`.
+`DSH_DESKTOP_AUTO_UPDATE_ENV` selects `test`, `production`, or `none` for both the URL embedded during packaging and the later COS upload; an absent value selects `test`. Selecting `none` disables auto-update publishing entirely (`publish: null`), electron-builder omits `app-update.yml`, and COS upload commands reject execution. The packaged application and installer identify as DSH Forge with artifact filenames matching `dsh-forge-${version}-${os}-${arch}.${ext}`. Test packaging requires its HTTPS origin in `DOWNLOAD_TEST_ORIGIN`, while the production origin remains `https://download.deepseek.com`. Upload additionally requires the selected deployment's COS bucket in `DOWNLOAD_TEST_COS_BUCKET` or `DOWNLOAD_PROD_COS_BUCKET`. The target path is `_/harness/desktop/stable/<target>/`, where `target` is `mac-arm64`, `mac-x64`, or `win-x64`.
 
 The update destination and upload credentials follow the selected deployment:
 
 | Environment | Public origin | COS bucket | COS credentials |
 |---|---|---|---|
+| `none` | Disabled (`publish: null`) | N/A (upload rejected) | N/A |
 | `test` or unset | `DOWNLOAD_TEST_ORIGIN` | `DOWNLOAD_TEST_COS_BUCKET` | `DOWNLOAD_TEST_COS_SECRET_ID`, `DOWNLOAD_TEST_COS_SECRET_KEY` |
 | `production` | `https://download.deepseek.com` | `DOWNLOAD_PROD_COS_BUCKET` | `DOWNLOAD_PROD_COS_SECRET_ID`, `DOWNLOAD_PROD_COS_SECRET_KEY` |
 
@@ -129,7 +130,7 @@ The macOS configuration uses the required release environment instead of accepti
 
 ### Windows EV signing
 
-Windows release packaging requires `DSH_DESKTOP_WINDOWS_CER_FILE` to identify the public GlobalSign EV leaf certificate, `DSH_DESKTOP_WINDOWS_SIGNTOOL` to identify the SafeNet-compatible SignTool executable, `DSH_DESKTOP_WINDOWS_KEY_CONTAINER` to identify the matching private-key container, and `DSH_DESKTOP_WINDOWS_TOKEN_PIN` to contain the SafeNet Token Password. The certificate file remains outside source control, and the matching private key stays on the USB token. Set the four inputs before running the fixed Windows target:
+Windows release packaging uses a SafeNet-specific EV hardware token signing workflow. It requires `DSH_DESKTOP_WINDOWS_CER_FILE` to identify the public X.509 leaf certificate, `DSH_DESKTOP_WINDOWS_SIGNTOOL` to identify the SafeNet-compatible SignTool executable, `DSH_DESKTOP_WINDOWS_KEY_CONTAINER` to identify the matching private-key container, and `DSH_DESKTOP_WINDOWS_TOKEN_PIN` to contain the SafeNet Token Password. Non-signing diagnostic verification runs use `pnpm run prepare:desktop` to verify release packaging without requiring signing credentials or a hardware token. Set the four inputs before running the fixed Windows target:
 
 ```powershell
 $env:DSH_DESKTOP_WINDOWS_CER_FILE = 'C:\path\to\server.cer'

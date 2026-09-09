@@ -1,5 +1,5 @@
 ---
-description: "DSH Forge attribution occupant for the conversation hero attribution slot, composed only into the desktop Forge build; for maintainers of that deployment's identity."
+description: "DSH Forge identity occupants for the conversation hero attribution and sidebar brand name slots, composed into desktop Forge; for maintainers of that deployment's identity."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package fills one slot — `conversation.hero.attribution` — with the three-line identity of the DSH Forge desktop deployment: the product name, its author, and the truthful statement that it is built on DeepSeek Harness. It occupies nothing else: the sidebar brand, the hero mark, the headline, and the Preview badge all stay exactly as their declaring packages render them. Only the desktop composition inserts this row, so the Web product's hero is unchanged. The package is private to this repository, is never published, retains no runtime state, and contributes nothing to model requests.
+This package fills two presentation slots — conversation hero attribution (with the three-line identity of DSH Forge, its author, and statement of building on DeepSeek Harness) and sidebar brand name (rendering "DSH Forge"). It occupies nothing else: the sidebar mark falls back to FishLogo since ui-brand-official is disabled in the desktop overlay, while the hero mark, headline, and Preview badge remain unchanged. Only the desktop composition inserts this plugin, leaving Web products unaffected. The package is private to this repository, is never published, retains no runtime state, and contributes nothing to model requests.
 
 ## Table of Contents
 
@@ -39,7 +39,7 @@ The visible strings are locale-owned in [`src/client/locales.ts`](src/client/loc
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-`apply` registers the `brandForge` dictionaries through `ctx.locale.register` as an effect, then occupies the slot inside `ctx.slots.inject`, so the occupant installs whether this row activates before or after `ui-conversation` declares the hole and withdraws when that declaration collapses. The browser half is [`src/client/index.ts`](src/client/index.ts); the node half is an empty Loader seat.
+`apply` registers the `brandForge` dictionaries through `ctx.locale.register` as an effect, then occupies `conversation.hero.attribution` and `sidebar.brand.name` inside `ctx.slots.inject`, so the occupants install whether this row activates before or after the declaring packages and withdraw cleanly when declarations collapse. The browser half is [`src/client/index.ts`](src/client/index.ts); the node half is an empty Loader seat.
 
 </details>
 
@@ -70,7 +70,7 @@ None; this package neither assembles nor sends a provider request.
 
 These limits define how the attribution is supplied. They are current package constraints, not a brand-design comparison or a task backlog.
 
-- **One occupant** — the package fills the hero attribution slot and no other; a second Forge surface would need its own decision.
+- **Two occupants** — the package fills `conversation.hero.attribution` and `sidebar.brand.name`; the sidebar mark falls back to the default `FishLogo` icon.
 - **No configuration surface** — alternative wording belongs in another package occupying the same slot, not in a config field.
 
 <a id="dev-note"></a>
@@ -83,4 +83,4 @@ The package sits under `packages/experimental/`, the repository's home for priva
 
 </details>
 
-**Runtime invariant:** No companion is published. The package retains no mutable state, and its dictionaries and single slot occupant install and leave through their own effects.
+**Runtime invariant:** No companion is published. The package retains no mutable state, and its dictionaries and slot occupants install and leave through their own effects.

@@ -71,10 +71,27 @@ describe('desktop auto-update environment', () => {
     }, 'darwin', 'arm64')).toThrow(/HTTPS origin/u)
   })
 
+  it('supports the none deployment with no public URL and rejects upload resolution', () => {
+    expect(resolveDesktopAutoUpdateEnvironment({
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'none',
+    })).toBe('none')
+    const config = resolveDesktopAutoUpdateConfig({
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'none',
+    }, 'win32', 'x64')
+    expect(config).toEqual({
+      environment: 'none',
+      target: 'win-x64',
+    })
+    expect(config.publicUrl).toBeUndefined()
+    expect(() => resolveDesktopUploadConfig({
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'none',
+    }, 'win32', 'x64')).toThrow(/environment "none"/u)
+  })
+
   it('rejects unknown deployments and targets', () => {
     expect(() => resolveDesktopAutoUpdateEnvironment({
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'staging',
-    })).toThrow(/test.*production/u)
+    })).toThrow(/test.*production.*none/u)
     expect(() => resolveDesktopAutoUpdateTarget('linux', 'x64')).toThrow(/unsupported target/u)
     expect(() => desktopBuildRecordFilename('linux-x64' as 'mac-arm64')).toThrow(/unsupported target/u)
   })
