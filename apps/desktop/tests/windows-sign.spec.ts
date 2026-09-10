@@ -1,15 +1,27 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildWindowsSigningEnvironment,
   createRedactedWindowsSigningError,
+  createWindowsLocalTestSigner,
+  createWindowsSigner,
   createWindowsTokenSigner,
   installWindowsNsisBootstrapSigner,
   repairDanglingAuthenticodeDirectory,
+  resolveWindowsSigningEnvironment,
   scrubWindowsSigningEnvironment,
 } from '../scripts/windows-sign.mjs'
+
+const { execFileMock } = vi.hoisted(() => ({
+  execFileMock: vi.fn((...args: unknown[]) => {
+    const callback = args.at(-1) as (error: null, result: { stdout: string; stderr: string }) => void
+    callback(null, { stdout: '', stderr: '' })
+  }),
+}))
+
+vi.mock('node:child_process', () => ({ execFile: execFileMock }))
 
 vi.mock('node:crypto', () => ({
   X509Certificate: class {
@@ -26,6 +38,151 @@ vi.mock('node:crypto', () => ({
 
 const CERTIFICATE_FILE = 'C:\\release\\server.cer'
 const SIGN_SCRIPT = resolve(import.meta.dirname, '../scripts/windows-sign.cmd')
+const TEST_CERTIFICATE_SHA1 = '0123456789abcdef0123456789ABCDEF01234567'
+
+beforeEach(() => {
+  execFileMock.mockClear()
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+describe('Windows signing selection', () => {
+  it('defaults to production and accepts only the two exact signing environments', () => {
+    expect(resolveWindowsSigningEnvironment(undefined)).toBe('production')
+    expect(resolveWindowsSigningEnvironment('production')).toBe('production')
+    expect(resolveWindowsSigningEnvironment('local-test')).toBe('local-test')
+    for (const value of ['', 'test', 'Local-Test']) {
+      expect(() => resolveWindowsSigningEnvironment(value)).toThrow(/DSH_DESKTOP_WINDOWS_SIGNING_ENV/u)
+    }
+  })
+
+  it('dispatches complete production and local-test configurations', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-windows-sign-dispatch-'))
+    const certificateFile = join(directory, 'server.cer')
+    const signTool = join(directory, 'signtool.exe')
+    await writeFile(certificateFile, 'code-signing-certificate-fixture')
+    await writeFile(signTool, 'fixture')
+    try {
+      expect(createWindowsSigner({
+        DSH_DESKTOP_WINDOWS_CER_FILE: certificateFile,
+        DSH_DESKTOP_WINDOWS_SIGNTOOL: signTool,
+        DSH_DESKTOP_WINDOWS_KEY_CONTAINER: 'te-container',
+        DSH_DESKTOP_WINDOWS_TOKEN_PIN: 'token-secret!',
+      })).toBeTypeOf('function')
+      expect(createWindowsSigner({
+        DSH_DESKTOP_WINDOWS_SIGNING_ENV: 'local-test',
+        DSH_DESKTOP_WINDOWS_SIGNTOOL: signTool,
+        DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1: TEST_CERTIFICATE_SHA1,
+      })).toBeTypeOf('function')
+    }
+    finally {
+      await rm(directory, { recursive: true })
+    }
+  })
+
+  it('rejects fields from the other signing environment', () => {
+    expect(() => createWindowsSigner({
+      DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1: TEST_CERTIFICATE_SHA1,
+    })).toThrow(/DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1/u)
+    for (const name of [
+      'DSH_DESKTOP_WINDOWS_CER_FILE',
+      'DSH_DESKTOP_WINDOWS_KEY_CONTAINER',
+      'DSH_DESKTOP_WINDOWS_TOKEN_PIN',
+    ] as const) {
+      expect(() => createWindowsSigner({
+        DSH_DESKTOP_WINDOWS_SIGNING_ENV: 'local-test',
+        [name]: 'contamination',
+      })).toThrow(new RegExp(name, 'u'))
+    }
+  })
+
+  it('requires an exact SHA-1 thumbprint and a validated SignTool for local-test', async () => {
+    expect(() => createWindowsSigner({
+      DSH_DESKTOP_WINDOWS_SIGNING_ENV: 'local-test',
+    })).toThrow(/DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1/u)
+    for (const certificateSha1 of [
+      ` ${TEST_CERTIFICATE_SHA1}`,
+      `"${TEST_CERTIFICATE_SHA1}"`,
+      `/${TEST_CERTIFICATE_SHA1}`,
+      `-${TEST_CERTIFICATE_SHA1}`,
+      TEST_CERTIFICATE_SHA1.slice(0, 39),
+      `${TEST_CERTIFICATE_SHA1}0`,
+      `${TEST_CERTIFICATE_SHA1.slice(0, 39)}g`,
+    ]) {
+      expect(() => createWindowsLocalTestSigner({ certificateSha1 }))
+        .toThrow(/exactly 40 hexadecimal characters/u)
+    }
+    expect(() => createWindowsLocalTestSigner({
+      certificateSha1: TEST_CERTIFICATE_SHA1,
+      signTool: 'missing.exe',
+    })).toThrow(/DSH_DESKTOP_WINDOWS_SIGNTOOL/u)
+  })
+
+  it('invokes SignTool directly with the fixed local-test arguments and scrubbed environment', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-windows-local-test-sign-'))
+    const signTool = join(directory, 'signtool.exe')
+    const target = join(directory, 'setup.exe')
+    await writeFile(signTool, 'fixture')
+    await writeFile(target, 'fixture')
+    vi.stubEnv('DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1', TEST_CERTIFICATE_SHA1)
+    vi.stubEnv('DSH_DESKTOP_WINDOWS_TOKEN_PIN', 'token-secret')
+    vi.stubEnv('DEEPSEEK_API_KEY', 'api-secret')
+    vi.stubEnv('BUILD_PASSWORD', 'build-secret')
+    try {
+      const signer = createWindowsLocalTestSigner({
+        certificateSha1: TEST_CERTIFICATE_SHA1,
+        signTool,
+      })
+      await signer({ path: target, hash: 'sha256', isNest: false })
+      await signer({ path: target, hash: 'sha256', isNest: true })
+
+      expect(execFileMock).toHaveBeenCalledTimes(2)
+      const [executable, args, options] = execFileMock.mock.calls[0] as [
+        string,
+        string[],
+        { env: NodeJS.ProcessEnv },
+      ]
+      expect(executable).toBe(signTool)
+      expect(args).toEqual([
+        'sign', '/v', '/fd', 'sha256', '/sha1', TEST_CERTIFICATE_SHA1, '/s', 'My', target,
+      ])
+      expect(args).not.toContain('/kc')
+      expect(args).not.toContain('/csp')
+      expect(args).not.toContain('/f')
+      expect(args).not.toContain('/tr')
+      expect(options.env.DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1).toBeUndefined()
+      expect(options.env.DSH_DESKTOP_WINDOWS_TOKEN_PIN).toBeUndefined()
+      expect(options.env.DEEPSEEK_API_KEY).toBeUndefined()
+      expect(options.env.BUILD_PASSWORD).toBeUndefined()
+      expect(execFileMock.mock.calls[1]?.[1]).toEqual([
+        'sign', '/v', '/fd', 'sha256', '/sha1', TEST_CERTIFICATE_SHA1, '/s', 'My', '/as', target,
+      ])
+    }
+    finally {
+      await rm(directory, { recursive: true })
+    }
+  })
+
+  it('rejects non-SHA-256 local-test signing tasks before invoking SignTool', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-windows-local-test-hash-'))
+    const signTool = join(directory, 'signtool.exe')
+    await writeFile(signTool, 'fixture')
+    try {
+      const signer = createWindowsLocalTestSigner({
+        certificateSha1: TEST_CERTIFICATE_SHA1,
+        signTool,
+      })
+      await expect(signer({ path: 'setup.exe', hash: 'sha1', isNest: false }))
+        .rejects.toThrow(/requires SHA-256/u)
+      expect(execFileMock).not.toHaveBeenCalled()
+    }
+    finally {
+      await rm(directory, { recursive: true })
+    }
+  })
+})
 
 describe('Windows token signing', () => {
   it('passes only the validated BAT fields to the signing command interpreter', () => {

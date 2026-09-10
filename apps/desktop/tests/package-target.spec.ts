@@ -9,11 +9,12 @@ import {
   resolveDesktopPackageTarget,
   withoutDesktopUploadCredentials,
   withoutWindowsSigningEnvironment,
+  windowsSigningEnvironmentForElectronBuilder,
   writeReleaseRecord,
 } from '../scripts/package-target.ts'
 
 vi.mock('../scripts/windows-sign.mjs', () => ({
-  createWindowsTokenSigner: vi.fn(),
+  createWindowsSigner: vi.fn(() => vi.fn()),
   installWindowsNsisBootstrapSigner: vi.fn(),
 }))
 
@@ -71,9 +72,33 @@ describe('desktop package target', () => {
       DSH_DESKTOP_WINDOWS_CER_FILE: 'C:\\release\\server.cer',
       DSH_DESKTOP_WINDOWS_TOKEN_PIN: 'token-secret',
       DSH_DESKTOP_WINDOWS_KEY_CONTAINER: 'container',
+      DSH_DESKTOP_WINDOWS_SIGNING_ENV: 'local-test',
       DSH_DESKTOP_WINDOWS_SIGNTOOL: 'C:\\tools\\signtool.exe',
+      DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1: '0123456789abcdef0123456789ABCDEF01234567',
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
     })).toEqual({ DSH_DESKTOP_AUTO_UPDATE_ENV: 'production' })
+  })
+
+  it('restores only approved Windows signing fields for electron-builder', () => {
+    expect(windowsSigningEnvironmentForElectronBuilder({
+      DSH_DESKTOP_TARGET_PLATFORM: 'win32',
+    }, {
+      DSH_DESKTOP_WINDOWS_CER_FILE: 'C:\\release\\server.cer',
+      DSH_DESKTOP_WINDOWS_KEY_CONTAINER: 'container',
+      DSH_DESKTOP_WINDOWS_SIGNING_ENV: 'local-test',
+      DSH_DESKTOP_WINDOWS_SIGNTOOL: 'C:\\tools\\signtool.exe',
+      DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1: '0123456789abcdef0123456789ABCDEF01234567',
+      DSH_DESKTOP_WINDOWS_TOKEN_PIN: 'token-secret',
+      DSH_DESKTOP_WINDOWS_UNAPPROVED: 'not-forwarded',
+    })).toEqual({
+      DSH_DESKTOP_TARGET_PLATFORM: 'win32',
+      DSH_DESKTOP_WINDOWS_CER_FILE: 'C:\\release\\server.cer',
+      DSH_DESKTOP_WINDOWS_KEY_CONTAINER: 'container',
+      DSH_DESKTOP_WINDOWS_SIGNING_ENV: 'local-test',
+      DSH_DESKTOP_WINDOWS_SIGNTOOL: 'C:\\tools\\signtool.exe',
+      DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1: '0123456789abcdef0123456789ABCDEF01234567',
+      DSH_DESKTOP_WINDOWS_TOKEN_PIN: 'token-secret',
+    })
   })
 
   it('keeps COS credentials out of every packaging subprocess', () => {
@@ -145,6 +170,28 @@ describe('electron-builder forge configuration', () => {
     }, 'win32', 'x64')
     expect(config.productName).toBe('DSH Forge')
     expect(config.artifactName).toBe('dsh-forge-${version}-${os}-${arch}.${ext}')
+    expect(config.publish).toBeNull()
+    expect(config.win.forceCodeSigning).toBe(true)
+    expect(config.win.target).toEqual(['nsis'])
+    expect(config.win.signtoolOptions.signingHashAlgorithms).toEqual(['sha256'])
+    expect(config.win.signtoolOptions.sign).toBeTypeOf('function')
+  })
+
+  it('selects a signing function for explicit local-test packaging', async () => {
+    const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
+    const config = createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: 'com.example.forge',
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'none',
+      DSH_DESKTOP_TARGET_PLATFORM: 'win32',
+      DSH_DESKTOP_TARGET_ARCH: 'x64',
+      DSH_DESKTOP_WINDOWS_SIGNING_ENV: 'local-test',
+      DSH_DESKTOP_WINDOWS_SIGNTOOL: 'C:\\tools\\signtool.exe',
+      DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1: '0123456789abcdef0123456789ABCDEF01234567',
+    }, 'win32', 'x64')
+    expect(config.win.forceCodeSigning).toBe(true)
+    expect(config.win.target).toEqual(['nsis'])
+    expect(config.win.signtoolOptions.signingHashAlgorithms).toEqual(['sha256'])
+    expect(config.win.signtoolOptions.sign).toBeTypeOf('function')
     expect(config.publish).toBeNull()
   })
 

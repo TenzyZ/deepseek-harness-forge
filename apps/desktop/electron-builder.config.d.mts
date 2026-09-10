@@ -20,6 +20,18 @@ export interface DesktopElectronBuilderConfig {
     readonly writeUpdateInfo: boolean
   }
   readonly artifactBuildCompleted: (artifact: { readonly file: string }) => Promise<void> | undefined
+  readonly win: {
+    readonly forceCodeSigning: boolean
+    readonly signtoolOptions: {
+      readonly sign: ((configuration: {
+        path: string
+        hash: string
+        isNest: boolean
+      }) => Promise<void>) | undefined
+      readonly signingHashAlgorithms: readonly ['sha256']
+    }
+    readonly target: readonly ['nsis']
+  }
   readonly publish: readonly [{ readonly provider: 'generic', readonly url: string }] | null
 }
 

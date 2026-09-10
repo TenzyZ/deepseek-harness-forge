@@ -21,6 +21,18 @@ const SENSITIVE_ENVIRONMENT_NAME = /(?:KEY|SECRET|TOKEN|PASSWORD)/iu
 const WINDOWS_SIGNING_ENVIRONMENT_PREFIX = 'DSH_DESKTOP_WINDOWS_'
 
 /**
+ * Resolve the explicit Windows signing environment.
+ *
+ * @param {string | undefined} value Configured signing environment.
+ * @returns {'production' | 'local-test'} Selected signing environment.
+ */
+export function resolveWindowsSigningEnvironment(value) {
+  if (value === undefined || value === 'production') return 'production'
+  if (value === 'local-test') return 'local-test'
+  throw new Error(`DSH_DESKTOP_WINDOWS_SIGNING_ENV must be "production" or "local-test", received ${JSON.stringify(value)}`)
+}
+
+/**
  * Remove inherited credentials before starting a signing-related subprocess.
  *
  * @param {NodeJS.ProcessEnv} environment Parent environment.
@@ -180,6 +192,82 @@ export function createWindowsTokenSigner(options) {
     if (stdout !== '') process.stdout.write(stdout)
     if (stderr !== '') process.stderr.write(stderr)
   }
+}
+
+/**
+ * Create the electron-builder hook for a certificate in the current user's My store.
+ *
+ * @param {{ certificateSha1?: string, signTool?: string }} options Local test signing configuration.
+ * @returns {(configuration: { path: string, hash: string, isNest: boolean }) => Promise<void>} The signing hook.
+ */
+export function createWindowsLocalTestSigner(options) {
+  const certificateSha1 = options.certificateSha1
+  if (certificateSha1 === undefined || !/^[0-9A-Fa-f]{40}$/u.test(certificateSha1)) {
+    throw new Error('DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1 must contain exactly 40 hexadecimal characters')
+  }
+  const signTool = resolveSignTool(options.signTool)
+  return async (configuration) => {
+    if (configuration.hash !== 'sha256') {
+      throw new Error(`Windows release signing requires SHA-256, received ${configuration.hash}`)
+    }
+    await repairDanglingAuthenticodeDirectory(configuration.path)
+    try {
+      const result = await execFileAsync(signTool, [
+        'sign',
+        '/v',
+        '/fd',
+        'sha256',
+        '/sha1',
+        certificateSha1,
+        '/s',
+        'My',
+        ...(configuration.isNest ? ['/as'] : []),
+        configuration.path,
+      ], {
+        env: scrubWindowsSigningEnvironment(process.env),
+        windowsHide: false,
+      })
+      if (result.stdout !== '') process.stdout.write(result.stdout)
+      if (result.stderr !== '') process.stderr.write(result.stderr)
+    }
+    catch (error) {
+      throw createRedactedWindowsSigningError(error, configuration.path, [])
+    }
+  }
+}
+
+/**
+ * Select one fail-closed Windows signing implementation from the packaging environment.
+ *
+ * @param {NodeJS.ProcessEnv} environment Packaging environment.
+ * @returns {(configuration: { path: string, hash: string, isNest: boolean }) => Promise<void>} The selected signing hook.
+ */
+export function createWindowsSigner(environment = process.env) {
+  const signingEnvironment = resolveWindowsSigningEnvironment(environment.DSH_DESKTOP_WINDOWS_SIGNING_ENV)
+  if (signingEnvironment === 'production') {
+    if (environment.DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1 !== undefined) {
+      throw new Error('DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1 is not accepted for production Windows signing')
+    }
+    return createWindowsTokenSigner({
+      certificateFile: environment.DSH_DESKTOP_WINDOWS_CER_FILE,
+      signTool: environment.DSH_DESKTOP_WINDOWS_SIGNTOOL,
+      tokenPin: environment.DSH_DESKTOP_WINDOWS_TOKEN_PIN,
+      keyContainer: environment.DSH_DESKTOP_WINDOWS_KEY_CONTAINER,
+    })
+  }
+  if (environment.DSH_DESKTOP_WINDOWS_CER_FILE !== undefined) {
+    throw new Error('DSH_DESKTOP_WINDOWS_CER_FILE is not accepted for local-test Windows signing')
+  }
+  if (environment.DSH_DESKTOP_WINDOWS_KEY_CONTAINER !== undefined) {
+    throw new Error('DSH_DESKTOP_WINDOWS_KEY_CONTAINER is not accepted for local-test Windows signing')
+  }
+  if (environment.DSH_DESKTOP_WINDOWS_TOKEN_PIN !== undefined) {
+    throw new Error('DSH_DESKTOP_WINDOWS_TOKEN_PIN is not accepted for local-test Windows signing')
+  }
+  return createWindowsLocalTestSigner({
+    certificateSha1: environment.DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1,
+    signTool: environment.DSH_DESKTOP_WINDOWS_SIGNTOOL,
+  })
 }
 
 /**

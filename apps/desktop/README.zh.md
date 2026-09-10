@@ -128,9 +128,9 @@ pnpm run upload:mac:arm64
 
 macOS 配置使用必填发布环境，不会接受钥匙串中最先发现的证书。空值、格式错误的 Team ID、包含 electron-builder 不支持的 `Developer ID Application:` 前缀的签名身份，以及不完整的公证凭据都会被拒绝。macOS 打包要求已配置的身份及其私钥可用。Seed 准备会把该身份、安全时间戳与 hardened runtime 应用到每个内嵌 Mach-O 文件；应用签名完成后，深度严格检查会拒绝其他叶证书 Authority 或 Team ID，验证通过才生成发布产物。Electron-builder 会在封装前公证应用并钉票，然后签署 DMG。DMG 的 artifact-completion hook 随后会公证它并钉票，再要求其身份、票据与 Gatekeeper 验证全部通过；只有 hook 成功，electron-builder 才能发布该文件。私钥可以来自登录钥匙串或 electron-builder 的标准 `CSC_LINK` 输入；环境中的 `CSC_NAME` 与证书发现顺序都不能选择发布所有者。公证凭据也可以使用 electron-builder 支持的完整 Apple ID 或钥匙串 profile 方式。手动执行 `pnpm --dir apps/desktop run verify:mac-signature -- <path-to-app>` 重复应用检查时，也必须提供两个 macOS 身份变量。
 
-### Windows EV 签名
+### Windows 签名
 
-Windows 发布打包使用基于 SafeNet 的 EV 代码签名 Token 配置。它要求 `DSH_DESKTOP_WINDOWS_CER_FILE` 标识公开的 X.509 叶证书，要求 `DSH_DESKTOP_WINDOWS_SIGNTOOL` 标识与 SafeNet 兼容的 SignTool 可执行文件，要求 `DSH_DESKTOP_WINDOWS_KEY_CONTAINER` 标识匹配的私钥容器，并要求 `DSH_DESKTOP_WINDOWS_TOKEN_PIN` 包含 SafeNet Token Password。非签名的诊断运行可使用 `pnpm run prepare:desktop` 在无需签名凭据或硬件 Token 的情况下验证发布打包准备流程。运行固定 Windows 目标前设置这四个输入：
+`DSH_DESKTOP_WINDOWS_SIGNING_ENV` 未设置或等于 `production` 时，生产模式为默认模式。Windows 生产发布打包使用基于 SafeNet 的 EV 代码签名 Token 配置。它要求 `DSH_DESKTOP_WINDOWS_CER_FILE` 标识公开的 X.509 叶证书，要求 `DSH_DESKTOP_WINDOWS_SIGNTOOL` 标识与 SafeNet 兼容的 SignTool 可执行文件，要求 `DSH_DESKTOP_WINDOWS_KEY_CONTAINER` 标识匹配的私钥容器，并要求 `DSH_DESKTOP_WINDOWS_TOKEN_PIN` 包含 SafeNet Token Password。非签名的诊断运行可使用 `pnpm run prepare:desktop` 在无需签名凭据或硬件 Token 的情况下验证发布打包准备流程。运行固定 Windows 目标前设置这四个输入：
 
 ```powershell
 $env:DSH_DESKTOP_WINDOWS_CER_FILE = 'C:\path\to\server.cer'
@@ -142,7 +142,13 @@ pnpm run package:desktop:win:x64
 
 打包前插入并解锁 Token。electron-builder hook 把每个产物交给采用 CRLF 的 `scripts/windows-sign.cmd`；该 CMD 只调用一次已配置的 SignTool，并指定 `/f`、SafeNet `/kc "[{{PIN}}]=容器"`、`/csp "eToken Base Cryptographic Provider"`、SHA-256 文件摘要和 DigiCert SHA-256 RFC 3161 时间戳。hook 不会改用 electron-builder 内置的 SignTool，也不会重试失败的签名请求。SignTool、证书、容器、PIN、Token 或签名不可用时，Windows 打包会失败，不会生成未签名产物。
 
-PIN 不能包含 `]`、引号或换行，因为这些字符用于分隔 SafeNet `/kc` 值或对应的 CMD 参数。CMD 会禁用延迟展开，因此包含 `!` 的 PIN 可以原样到达 SafeNet。打包流程不会把任何 `DSH_DESKTOP_WINDOWS_*` 字段传给构建与 seed 准备子进程；它只向 electron-builder 提供四个配置输入，在其他字段已经清理的环境中只向签名 CMD 提供经过校验的签名字段，在 SignTool 启动前清除这些字段，并遮盖 SignTool 诊断。SafeNet 仍要求 PIN 出现在 SignTool 进程命令行中。只能在连接了物理 Token 的受控 self-hosted Windows runner 上把它注入为临时 secret；绝不能提交该值、把它写进 `.env`，或持久保存为 Windows 用户或系统环境变量。
+PIN 不能包含 `]`、引号或换行，因为这些字符用于分隔 SafeNet `/kc` 值或对应的 CMD 参数。CMD 会禁用延迟展开，因此包含 `!` 的 PIN 可以原样到达 SafeNet。打包流程不会把任何 `DSH_DESKTOP_WINDOWS_*` 字段传给构建与 seed 准备子进程；它只向 electron-builder 提供六个已获准且实际存在的签名输入名称，在其他字段已经清理的环境中只向签名 CMD 提供经过校验的生产字段，在 SignTool 启动前清除这些字段，并遮盖 SignTool 诊断。SafeNet 仍要求 PIN 出现在 SignTool 进程命令行中。只能在连接了物理 Token 的受控 self-hosted Windows runner 上把它注入为临时 secret；绝不能提交该值、把它写进 `.env`，或持久保存为 Windows 用户或系统环境变量。
+
+#### 本地测试签名
+
+设置 `DSH_DESKTOP_WINDOWS_SIGNING_ENV=local-test` 可从 `Cert:\CurrentUser\My` 选择专用的代码签名证书，并把 `DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1` 设置为该证书由 40 个十六进制字符组成的准确 SHA-1 指纹。这个显式的本地开发与测试模式还要求使用经过校验的 `DSH_DESKTOP_WINDOWS_SIGNTOOL`；它会拒绝生产证书文件、密钥容器和 Token Password 输入，不会在签名模式之间回退。
+
+本地测试签名使用固定的当前用户 `My` 存储、SHA-256 文件摘要和所选指纹直接调用 SignTool，且不使用时间戳服务器。它不使用 PFX 文件或密码，不加载或导出私钥，也不修改信任存储。专用证书及其私钥必须保留在仓库之外。其签名不受公众信任，也不是发布签名机制；后续操作方验证必须确认安装包的证书和指纹，且不得把该证书安装到 Trusted Root 存储中。
 
 使用对应的 `:dir` 命令可以生成可直接运行的应用目录，而不是安装包，例如：
 
