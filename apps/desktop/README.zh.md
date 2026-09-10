@@ -27,6 +27,8 @@ dsh 主渲染进程只获得桌面协议标记。独立插件窗口获得结构�
 
 Electron 根据应用 locale 选择类型化的中英文字典，并以英文作为 fallback。菜单、原生对话框与插件管理渲染进程使用同一 locale 数据；仓库的 Client UI i18n gate 会检查这些桌面源文件。
 
+Electron 把主原生窗口标题固定为 `DSH Forge`，防止渲染器页面标题更新替换原生窗口标题，并保留 Desktop Plugins 窗口由 locale 拥有的标题。Windows 打包明确使用 `build/icon.ico` 作为应用与安装程序标识。
+
 ### Seed 安装
 
 安装包内的 seed 是安装工具包，不是可以直接运行的 `node_modules` 目录。打包过程会生成锁文件，在禁用生命周期脚本的情况下在线物化生产依赖图，删除 `node_modules` 以及所有临时 pnpm cache、config 和 state 目录，然后只使用最终 store 完成一次完整离线安装，并验证私有 Desktop Host 的入口与 overlay 均存在。macOS 构建随后从 pnpm 内容寻址 store staging 每个 Mach-O 对象，最多并发四个 Developer ID 签名进程，并且只在所有签名成功后才更新受影响的 SHA-512 索引记录。再一次离线安装会在分片前证明重写后的 store；准备过程随后解包最终归档，并验证每个内嵌签名。签名 seed 保留发布身份、本地第一方 tarball 及其描述文件、项目元数据、锁文件、完整性清单，以及在用户机器上重复该安装所需的 pnpm store 内容。

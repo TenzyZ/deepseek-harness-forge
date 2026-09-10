@@ -22,6 +22,8 @@ One Desktop release number identifies the Electron artifact and its exact `@deep
 
 The browser Web UI, dsh backend, existing `dsh plugin` CLI, user npm, and user pnpm cannot mutate this profile. The CLI reserves every case variant of the `desktop` name and rejects boot, config-dump, and plugin-management requests for it. Electron acquires its process-lifetime single-instance lock before project recovery or Host startup; later launches focus or recreate the primary window without touching profile state. An Electron-only GUI sends structured install, remove, and update requests through preload; Electron invokes only its bundled pnpm.
 
+Electron owns native window identity. It keeps the main window titled `DSH Forge`, assigns the Desktop Plugins title from the shell locale, and prevents renderer page-title updates from replacing either native title. Windows packaging explicitly sets `win.icon` to the maintained `build/icon.ico` asset.
+
 ## Ownership
 
 | Owner | Responsibility |
@@ -105,7 +107,7 @@ The bundled upstream Node.js and pnpm are expected to add about 35–50 MB compr
 
 | Surface | Implementation |
 |---|---|
-| Shell | `apps/desktop` owns Electron windows, restricted preloads, the custom protocol, child lifecycle, project transactions, the plugin GUI, update coordination, and electron-builder configuration. |
+| Shell | `apps/desktop` owns Electron windows and native identity, restricted preloads, the custom protocol, child lifecycle, project transactions, the plugin GUI, update coordination, and electron-builder configuration. |
 | Installed runtime | Private `@deepseek-ai/dsh-desktop-host` boots the portless desktop composition from the active project and streams API and asset responses over validated framed byte pipes. |
 | Package state | The release seed and every later mutation run through bundled Node.js and pnpm with desktop-owned store, config, cache, state, and home paths; core packages resolve from release tarballs while plugins resolve from the fixed npm registry. |
 | Qualification | macOS packaging requires the configured company identity and notary credentials, verifies every native seed object after final archive extraction, verifies the completed application signature, and requires notarization plus Gatekeeper acceptance for both the application and DMG. Windows packaging requires the configured public certificate, SafeNet private-key container, Token Password, and SignTool, and verifies every produced signature. Update hosting, previous-version installed-artifact tests, and platform GUI recordings remain release-environment gates. |
@@ -132,6 +134,10 @@ The bundled upstream Node.js and pnpm are expected to add about 35–50 MB compr
 
 **Commit a credential-bearing signing script or persist the Token Password.** A credential-bearing CMD file, `.env`, or Windows user or system environment variable leaves the Token Password recoverable at rest. The checked-in CMD contains only environment-variable references, and the packaging step accepts the password as an ephemeral runner secret.
 
+**Let renderer page titles control native window chrome.** Session or document title changes would replace the application identity in native window chrome. Electron instead owns fixed native titles and cancels page-title updates.
+
+**Rely on electron-builder icon discovery.** Auto-discovery makes Windows identity depend on implicit filenames and tool behavior. The Windows target names the maintained ICO asset explicitly.
+
 **Let electron-builder or a general directory sync publish directly.** A direct publisher can expose channel metadata before every referenced artifact exists, mix stale or cross-target files into a release, and cannot prove that the completed signed build still matches the current dsh version. A target-specific validated upload keeps publication ordering and release identity explicit.
 
 ## Consequences
@@ -150,6 +156,7 @@ The bundled upstream Node.js and pnpm are expected to add about 35–50 MB compr
 - No loopback listener is opened, and the sandboxed renderer cannot access arbitrary filesystem or Electron APIs.
 - Workspace development runs current built code without downloading release resources, while unpacked-package verification retains the production installation path.
 - Windows release packaging requires the validated SignTool, EV token, matching public leaf certificate, Token Password, and explicit key container; it never falls back to an unsigned artifact or an exportable key file.
+- Windows application artifacts use the maintained ICO asset, and renderer page-title updates cannot replace the shell-owned main or Desktop Plugins native titles.
 - A target update cannot expose new channel metadata until the completed signed build and every referenced artifact pass release validation; retained historical artifacts remain available for differential updates.
 - Signed installed artifacts update successfully from the previous supported release on each release-blocking platform.
 

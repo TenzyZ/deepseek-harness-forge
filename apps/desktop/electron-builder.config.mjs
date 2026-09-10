@@ -81,6 +81,7 @@ export function createElectronBuilderConfig(
       )
     },
     win: {
+      icon: 'build/icon.ico',
       forceCodeSigning: true,
       signtoolOptions: {
         sign: windowsSigner,

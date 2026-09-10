@@ -19,6 +19,7 @@ import { DESKTOP_IPC, type DesktopUpdateState } from './ipc.ts'
 import { formatDesktopMessage, resolveDesktopLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
+import { setDesktopWindowTitle } from './window-title.ts'
 
 const SCHEME = 'dsh-app'
 let focusPrimaryWindow = (): void => {}
@@ -79,7 +80,7 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
   return port
 }
 
-function createWindow(preload: string): BrowserWindow {
+function createWindow(preload: string, title: string): BrowserWindow {
   const configuredWindowIcon = app.isPackaged ? undefined : process.env.DSH_DESKTOP_WINDOW_ICON
   const window = new BrowserWindow({
     width: 1280,
@@ -98,6 +99,7 @@ function createWindow(preload: string): BrowserWindow {
       webSecurity: true,
     },
   })
+  setDesktopWindowTitle(window, title)
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => {
     if (new URL(url).protocol !== `${SCHEME}:`) event.preventDefault()
@@ -321,9 +323,8 @@ async function main(): Promise<void> {
       pluginWindow.focus()
       return
     }
-    pluginWindow = createWindow(managementPreload)
+    pluginWindow = createWindow(managementPreload, messages.pluginWindowTitle)
     pluginWindow.setSize(900, 620)
-    pluginWindow.setTitle(messages.pluginWindowTitle)
     pluginWindow.once('ready-to-show', () => { pluginWindow?.show() })
     pluginWindow.once('closed', () => { pluginWindow = undefined })
     void pluginWindow.loadURL(`${SCHEME}://shell/plugin-manager.html`)
@@ -345,7 +346,7 @@ async function main(): Promise<void> {
   }]))
 
   const createMainWindow = (): BrowserWindow => {
-    const window = createWindow(appPreload)
+    const window = createWindow(appPreload, messages.mainWindowTitle)
     mainWindow = window
     window.once('ready-to-show', () => { if (!window.isDestroyed()) window.show() })
     window.on('closed', () => { if (mainWindow === window) mainWindow = undefined })

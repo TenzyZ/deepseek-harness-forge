@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -171,6 +171,8 @@ describe('electron-builder forge configuration', () => {
     expect(config.productName).toBe('DSH Forge')
     expect(config.artifactName).toBe('dsh-forge-${version}-${os}-${arch}.${ext}')
     expect(config.publish).toBeNull()
+    expect(config.win.icon).toBe('build/icon.ico')
+    expect(existsSync(new URL(`../${config.win.icon}`, import.meta.url))).toBe(true)
     expect(config.win.forceCodeSigning).toBe(true)
     expect(config.win.target).toEqual(['nsis'])
     expect(config.win.signtoolOptions.signingHashAlgorithms).toEqual(['sha256'])

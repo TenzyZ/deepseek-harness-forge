@@ -2,6 +2,7 @@
 
 export const en = {
   application: 'Application',
+  mainWindowTitle: 'DSH Forge',
   startupFailed: 'DSH Forge could not start',
   pluginsMenu: 'Desktop Plugins…',
   pluginsMenuPackagedOnly: 'Desktop Plugins… (available in packaged applications)',
@@ -41,6 +42,7 @@ export type DesktopMessages = { readonly [Key in keyof typeof en]: string }
 
 export const zh = {
   application: '应用',
+  mainWindowTitle: 'DSH Forge',
   startupFailed: 'DSH Forge 无法启动',
   pluginsMenu: '桌面插件…',
   pluginsMenuPackagedOnly: '桌面插件…（打包应用中可用）',

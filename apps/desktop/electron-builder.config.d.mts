@@ -21,6 +21,7 @@ export interface DesktopElectronBuilderConfig {
   }
   readonly artifactBuildCompleted: (artifact: { readonly file: string }) => Promise<void> | undefined
   readonly win: {
+    readonly icon: 'build/icon.ico'
     readonly forceCodeSigning: boolean
     readonly signtoolOptions: {
       readonly sign: ((configuration: {
