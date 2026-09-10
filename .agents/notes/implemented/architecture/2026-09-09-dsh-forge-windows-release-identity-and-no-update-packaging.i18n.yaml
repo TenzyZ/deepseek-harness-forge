@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-dsh-forge-windows-release-identity-and-no-update-packaging.md
-2026-09-09-dsh-forge-windows-release-identity-and-no-update-packaging.md: 6055f23bb47fd794b7c03e88848df8bcdb146512
-2026-09-09-dsh-forge-windows-release-identity-and-no-update-packaging.zh.md: 25df08bbdf37e97b725b99aee76f8d605abf3488
+2026-09-09-dsh-forge-windows-release-identity-and-no-update-packaging.md: cea58bed797aa5c7a550b2503b23cde65e74507f
+2026-09-09-dsh-forge-windows-release-identity-and-no-update-packaging.zh.md: 1fb5e12d72462523b2450768630aa9aaff95ac78

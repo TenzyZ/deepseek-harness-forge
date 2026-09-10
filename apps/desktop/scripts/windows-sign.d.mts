@@ -15,6 +15,16 @@ export function buildWindowsSigningEnvironment(environment: NodeJS.ProcessEnv, i
 }): NodeJS.ProcessEnv
 
 /**
+ * Resolve the explicit Windows signing environment.
+ *
+ * @param value Configured signing environment.
+ * @returns Selected signing environment.
+ */
+export function resolveWindowsSigningEnvironment(
+  value: string | undefined,
+): 'production' | 'local-test'
+
+/**
  * Create the electron-builder hook for a hardware-backed Windows code-signing certificate.
  *
  * @param options Release signing configuration.
@@ -27,6 +37,37 @@ export function createWindowsTokenSigner(options: {
   keyContainer?: string | undefined
   commandInterpreter?: string | undefined
 }): (
+  configuration: {
+    path: string
+    hash: string
+    isNest: boolean
+  },
+) => Promise<void>
+
+/**
+ * Create the electron-builder hook for a certificate in the current user's My store.
+ *
+ * @param options Local test signing configuration.
+ * @returns The signing hook.
+ */
+export function createWindowsLocalTestSigner(options: {
+  certificateSha1?: string | undefined
+  signTool?: string | undefined
+}): (
+  configuration: {
+    path: string
+    hash: string
+    isNest: boolean
+  },
+) => Promise<void>
+
+/**
+ * Select one fail-closed Windows signing implementation from the packaging environment.
+ *
+ * @param environment Packaging environment.
+ * @returns The selected signing hook.
+ */
+export function createWindowsSigner(environment?: NodeJS.ProcessEnv): (
   configuration: {
     path: string
     hash: string

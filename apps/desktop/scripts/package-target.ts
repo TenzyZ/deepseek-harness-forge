@@ -16,7 +16,9 @@ const WINDOWS_SIGNING_ENV_PREFIX = 'DSH_DESKTOP_WINDOWS_'
 const WINDOWS_SIGNING_ENV_NAMES = [
   'DSH_DESKTOP_WINDOWS_CER_FILE',
   'DSH_DESKTOP_WINDOWS_KEY_CONTAINER',
+  'DSH_DESKTOP_WINDOWS_SIGNING_ENV',
   'DSH_DESKTOP_WINDOWS_SIGNTOOL',
+  'DSH_DESKTOP_WINDOWS_TEST_CERT_SHA1',
   'DSH_DESKTOP_WINDOWS_TOKEN_PIN',
 ] as const
 const DESKTOP_UPLOAD_CREDENTIAL_ENV_NAMES = new Set([
@@ -70,6 +72,23 @@ const TARGETS: Record<DesktopPackageTargetName, DesktopPackageTarget> = {
 export function withoutWindowsSigningEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(environment)
     .filter(([name]) => !name.startsWith(WINDOWS_SIGNING_ENV_PREFIX)))
+}
+
+/**
+ * Restore only approved Windows signing fields for electron-builder.
+ * @param environment - Scrubbed target environment.
+ * @param source - Original packaging command environment.
+ * @returns The electron-builder environment with approved signing fields.
+ */
+export function windowsSigningEnvironmentForElectronBuilder(
+  environment: NodeJS.ProcessEnv,
+  source: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  const result = { ...environment }
+  for (const name of WINDOWS_SIGNING_ENV_NAMES) {
+    if (source[name] !== undefined) result[name] = source[name]
+  }
+  return result
 }
 
 /**
@@ -268,10 +287,7 @@ async function main(): Promise<void> {
     DSH_DESKTOP_TARGET_PLATFORM: target.platform,
     DSH_DESKTOP_TARGET_ARCH: target.arch,
   }
-  const electronBuilderEnv = { ...targetEnv }
-  for (const name of WINDOWS_SIGNING_ENV_NAMES) {
-    if (process.env[name] !== undefined) electronBuilderEnv[name] = process.env[name]
-  }
+  const electronBuilderEnv = windowsSigningEnvironmentForElectronBuilder(targetEnv, process.env)
   await runPnpm(['run', 'build:official'], buildEnv, REPOSITORY_ROOT)
   await runPnpm(['run', 'release:pack', '--family', 'dsh', '--out', buildPaths.packedDsh], buildEnv, REPOSITORY_ROOT)
   await runPnpm([
