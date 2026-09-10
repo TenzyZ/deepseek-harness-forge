@@ -22,6 +22,8 @@ Electron 拥有保留 profile `.dsh/profiles/desktop`。其中精确的 `@deepse
 
 浏览器 Web UI、dsh 后端、现有 `dsh plugin` CLI、用户 npm 和用户 pnpm 都不能修改该 profile。CLI 保留 `desktop` 名称的所有大小写变体，并拒绝针对它的启动、配置 dump 和插件管理请求。Electron 在项目恢复或 Host 启动前获取进程生命周期单实例锁；后续启动只会聚焦或重建主窗口，不会接触 profile 状态。Electron-only GUI 通过 preload 发送结构化安装、删除和更新请求；Electron 只调用其内置 pnpm。
 
+Electron 拥有原生窗口标识。它把主窗口标题保持为 `DSH Forge`，从 shell locale 取得 Desktop Plugins 标题，并防止渲染器页面标题更新替换任一原生标题。Windows 打包明确把 `win.icon` 设为由维护者提供的 `build/icon.ico` 资产。
+
 ## 归属
 
 | Owner | 职责 |
@@ -105,7 +107,7 @@ Windows 发布打包通过 `/f` 向已配置且与 SafeNet 兼容的 SignTool �
 
 | 表面 | 实现 |
 |---|---|
-| 壳 | `apps/desktop` 负责 Electron 窗口、受限 preload、自定义协议、子进程生命周期、项目事务、插件 GUI、更新协调和 electron-builder 配置。 |
+| 壳 | `apps/desktop` 负责 Electron 窗口与原生标识、受限 preload、自定义协议、子进程生命周期、项目事务、插件 GUI、更新协调和 electron-builder 配置。 |
 | 已安装运行时 | 私有 `@deepseek-ai/dsh-desktop-host` 从活跃项目启动无端口桌面组合，并通过经过验证的分帧字节管道流式传输 API 与资源响应。 |
 | 包状态 | 发布种子和后续每次修改都通过内置 Node.js 与 pnpm 执行，并使用桌面端拥有的 store、config、cache、state 和 home 路径；核心包从发布 tarball 解析，插件从固定 npm registry 解析。 |
 | 资格验证 | macOS 打包要求已配置的公司身份与公证凭据可用，在解包最终归档后验证每个原生 seed 对象，验证完整应用签名，并要求应用和 DMG 都完成公证且通过 Gatekeeper。Windows 打包要求已配置的公开证书、SafeNet 私钥容器、Token Password 与 SignTool，并验证生成的每个签名。更新托管、跨上一版本的已安装产物测试和各平台 GUI 录制仍是发布环境门槛。 |
@@ -132,6 +134,10 @@ Windows 发布打包通过 `/f` 向已配置且与 SafeNet 兼容的 SignTool �
 
 **提交包含凭据的签名脚本或持久保存 Token Password。** 包含凭据的 CMD 文件、`.env` 或 Windows 用户/系统环境变量都会让 Token Password 以静态形式被读取。已提交的 CMD 只包含环境变量引用，打包步骤则把密码作为 runner 临时 secret 接收。
 
+**让渲染器页面标题控制原生窗口 chrome。** Session 或文档标题更改会替换原生窗口 chrome 中的应用标识。Electron 改为拥有固定的原生标题，并取消页面标题更新。
+
+**依赖 electron-builder 自动发现图标。** 自动发现会让 Windows 标识依赖隐式文件名和工具行为。Windows 目标改为明确指定由维护者提供的 ICO 资产。
+
 **让 electron-builder 或通用目录同步直接发布。** 直接发布可能在所有引用产物就绪前暴露频道元数据，可能把陈旧或其他目标的文件混入发布，也无法证明已完成签名的构建仍与当前 dsh 版本一致。目标专用且经过校验的上传可以明确控制发布顺序与发布身份。
 
 ## 结果
@@ -150,6 +156,7 @@ Windows 发布打包通过 `/f` 向已配置且与 SafeNet 兼容的 SignTool �
 - 不打开回环监听端口，沙箱渲染进程不能访问任意文件系统或 Electron API。
 - Workspace 开发无需下载发布资源即可运行当前已构建代码，未封装安装器的应用验证仍保留生产安装路径。
 - Windows 发布打包要求已验证的 SignTool、EV Token、匹配的公开叶证书、Token Password 和明确的密钥容器，绝不会回退到未签名产物或可导出的密钥文件。
+- Windows 应用产物使用由维护者提供的 ICO 资产，渲染器页面标题更新不能替换 shell 拥有的主窗口或 Desktop Plugins 原生标题。
 - 目标更新只有在已完成签名的构建及其引用的每个产物通过发布校验后才能暴露新频道元数据；保留的历史产物继续供差分更新使用。
 - 每个发布阻断平台上的签名已安装产物均能从上一个受支持版本成功更新。
 
