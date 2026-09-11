@@ -1,23 +1,67 @@
-# Contributing
+# Contributing to DSH Forge
 
-English | [中文](CONTRIBUTING.zh.md)
+DSH Forge is an unofficial community fork of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), maintained by Tenzy. It is not a DeepSeek product, and nothing here represents DeepSeek's contribution policy.
 
-Thank you for your interest in contributing to DeepSeek Harness!
+Contributions are welcome. DSH Forge is in developer preview and maintained by one person, so there is no guaranteed response time or release schedule.
 
-We deeply believe in the power of open source communities, and that belief has shaped this project from the very beginning.
+## Ways to contribute
 
-DeepSeek Harness is still at an early stage and under active development. We are sorry that we cannot accept external pull requests at the moment. However, contributing code to this repository is far from the only way to help. There are many other ways to get involved:
+- **Bug reports.** Open an issue with reproduction steps, what you expected, what happened, and your version and platform.
+- **Feature or improvement proposals.** Open an issue describing the problem and the behavior you want.
+- **Documentation fixes.** Send a pull request directly.
+- **Plugins and extensions.** DSH Forge is a plugin-based harness. A plugin does not need changes to this repository simply to exist. Build it independently, or propose it as a package when it belongs in the fork.
+- **Pull requests.** Focused bug fixes and focused features are welcome.
 
-- Identify and report issues or bugs in GitHub Discussions:
-  - Upvote discussions that you would like to bring to the team's attention. We are a very small team and may not be able to reply to every post, but we monitor them and consider them when allocating resources.
-- Contribute to the ecosystem:
-  - Create a plugin that excites you and share it with others:
-    - Associate your GitHub project with the `dsh-plugin` topic to help others discover your plugin.
-  - Write blog posts and how-to guides about DeepSeek Harness.
-  - Answer questions and help other members of the community.
+## Before a large change
 
-DeepSeek Harness is designed to be deeply customizable. We do not believe that packages in the official repository are inherently more important than packages created by the community. You may consider this repository an idea, an official showcase, and a source of inspiration, but not a mandate from us.
+Open an issue first if your change touches `agent-loop`, a capability seam, the session log format, or another core contract. These changes are expensive to redo, so agreeing on the approach first keeps the implementation focused.
 
-We have already seen exciting projects emerge from the community, and we hope to see the ecosystem continue to grow in its own directions.
+Documentation fixes, small bug fixes, and new plugins do not need a prior issue. Send the pull request.
 
-Into the unknown.
+## Pull requests
+
+Prefer the least invasive mechanism that solves the problem: configuration or a preset, then an existing plugin, then a new plugin or extension, then a narrowly scoped package change, and only then core behavior.
+
+[docs/architecture.md](docs/architecture.md) documents the architecture and extension boundaries. The [extension cookbook](docs/cookbook/extension-cookbook.md) covers common extension patterns.
+
+A good pull request:
+
+- Does one thing. Split unrelated work into separate pull requests.
+- Preserves existing behavior unless changing that behavior is the purpose of the pull request.
+- Includes tests for behavioral changes and updates tests whose expected behavior changed.
+- Leaves unrelated refactoring, speculative abstractions, and dependency upgrades out.
+- States what was run to verify the change, with useful output when appropriate.
+
+[AGENTS.md](AGENTS.md) contains the repository conventions; read it before changing `packages/`. Non-trivial changes also require an Agent Note as described in [.agents/notes/README.md](.agents/notes/README.md).
+
+## Verifying your change
+
+See [docs/development.md](docs/development.md) for the full development setup. Install dependencies and run the repository type check:
+
+```sh
+pnpm install
+pnpm run typecheck
+```
+
+Then run the checks relevant to what you changed:
+
+```sh
+pnpm run lint
+pnpm run test
+pnpm run doc-sync     # documentation changes
+pnpm run build        # changes consumed from built output
+```
+
+Use the narrowest verification that covers your change. `pnpm run check:all` runs the broader repository checks when they are appropriate.
+
+Report the verification you ran in your pull request.
+
+Documentation translation requirements are described in [docs/i18n/README.md](docs/i18n/README.md).
+
+## Upstream DeepSeek Harness
+
+DSH Forge is built on DeepSeek Harness and follows its architecture closely. If you find a bug or want a feature that is not specific to Forge's changes, [upstream DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) may be the better place to raise it; an upstream fix can benefit Forge as well.
+
+Forge-specific changes are documented in the [README](README.md).
+
+DSH Forge is distributed under the MIT license. See [LICENSE](LICENSE).
